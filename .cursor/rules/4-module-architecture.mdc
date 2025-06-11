@@ -1,0 +1,417 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# 4. Module Architecture & System Map
+
+This document provides a comprehensive map of the module architecture, import/export relationships, dependency chains, and critical system configurations.
+
+## Module Dependency Graph
+
+### Core Module Hierarchy
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        DEPENDENCY FLOW                         │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  Types & API Contract (Foundation Layer)                       │
+│  ├─ src/types.ts                    (Core interfaces)          │
+│  └─ src/ipc-api.ts                  (IPC channel definitions)  │
+│                           │                                     │
+│                           ▼                                     │
+│  Main Process (Electron Main)                                  │
+│  ├─ src/main/index.ts               (Entry point & IPC setup)  │
+│  └─ src/main/services/              (Business logic)           │
+│      ├─ MetadataService.ts          (Audio metadata handling)  │
+│      └─ FilenameParser.ts           (Filename parsing logic)   │
+│                           │                                     │
+│                           ▼                                     │
+│  Preload Bridge (Security Layer)                               │
+│  └─ src/preload.ts                  (IPC bridge & security)    │
+│                           │                                     │
+│                           ▼                                     │
+│  Renderer Process (React UI)                                   │
+│  ├─ src/renderer/index.tsx          (React root & ErrorBound.) │
+│  ├─ src/renderer/TableRenderer.tsx  (Main app component)       │
+│  ├─ src/renderer/store.ts           (Zustand state mgmt.)      │
+│  └─ src/renderer/components/        (UI components)            │
+│      ├─ AudioPlayer.tsx             (WaveSurfer integration)   │
+│      ├─ Controls.tsx                (Playback controls)        │
+│      ├─ VolumeControl.tsx           (Audio volume)             │
+│      ├─ ErrorDialog.tsx             (Error handling UI)        │
+│      └─ FilenameMappingModal.tsx    (Batch editing modal)      │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+## Import/Export Map
+
+### 1. Core Types & Interfaces (`src/types.ts`)
+
+**Exports:**
+- `Wavedata` - Main file metadata interface
+- `BWFMetadata` - Broadcast Wave Format metadata
+- `iXMLMetadata` - iXML chunk data
+- `FileInfo` - File system information
+- `AgentStatus` - Background agent states
+
+**Imported By:**
+- `src/main/index.ts` (IPC handlers)
+- `src/main/services/MetadataService.ts` (data processing)
+- `src/renderer/TableRenderer.tsx` (UI state)
+- `src/renderer/store.ts` (state management)
+- All components that handle metadata
+
+### 2. IPC API Contract (`src/ipc-api.ts`)
+
+**Exports:**
+- `CHANNELS` - Object with all IPC channel names
+- `IElectronAPI` - TypeScript interface for exposed API
+
+**Imported By:**
+- `src/main/index.ts` (channel registration)
+- `src/preload.ts` (API implementation)
+- `src/renderer/TableRenderer.tsx` (API usage)
+
+### 3. Main Process Entry (`src/main/index.ts`)
+
+**Imports:**
+- `electron` - Main, BrowserWindow, ipcMain, dialog
+- `src/types.ts` - Wavedata, FileInfo interfaces
+- `src/ipc-api.ts` - CHANNELS constant
+- `src/main/services/MetadataService.ts` - metadataService instance
+- `src/main/services/FilenameParser.ts` - filenameParser instance
+- `chokidar` - File watching
+- `path`, `fs` - Node.js file system
+
+**Exports:** None (entry point)
+
+### 4. Metadata Service (`src/main/services/MetadataService.ts`)
+
+**Imports:**
+- `src/types.ts` - All metadata interfaces
+- `wavefile` - WAV file library for BWF/iXML
+- `fast-xml-parser` - XML parsing for iXML chunks
+- `fs`, `path` - File system operations
+
+**Exports:**
+- `MetadataService` class
+- `metadataService` instance (singleton)
+
+### 5. Preload Script (`src/preload.ts`)
+
+**Imports:**
+- `electron` - contextBridge, ipcRenderer
+- `src/ipc-api.ts` - CHANNELS, IElectronAPI interface
+
+**Exports:** None (exposes API via contextBridge)
+
+### 6. Renderer Entry (`src/renderer/index.tsx`)
+
+**Imports:**
+- `react`, `react-dom/client`
+- `src/renderer/TableRenderer.tsx` - Main App component
+
+**Exports:** None (entry point)
+
+### 7. Main App Component (`src/renderer/TableRenderer.tsx`)
+
+**Imports:**
+- `react` - hooks and components
+- `@emotion/styled`, `@emotion/react` - Styled components
+- `zustand/shallow` - Performance optimization
+- `src/renderer/store.ts` - useStore, AppState
+- `src/types.ts` - Wavedata, BWFMetadata, AgentStatus
+- Component imports:
+  - `src/renderer/components/ErrorDialog.tsx`
+  - `src/renderer/components/FilenameMappingModal.tsx`
+  - `src/renderer/components/AudioPlayer.tsx`
+
+**Exports:**
+- `App` component (main React component)
+
+### 8. State Management (`src/renderer/store.ts`)
+
+**Imports:**
+- `zustand` - State management library
+- `src/types.ts` - All data interfaces
+
+**Exports:**
+- `useStore` - Main Zustand store hook
+- `AppState` - TypeScript interface for store state
+
+### 9. AudioPlayer Component (`src/renderer/components/AudioPlayer.tsx`)
+
+**Imports:**
+- `react` - hooks
+- `@emotion/styled` - Styled components
+- `wavesurfer.js` - Audio waveform library
+- `src/renderer/store.ts` - useStore hook
+- `zustand/shallow` - Performance optimization
+- Component imports:
+  - `src/renderer/components/Controls.tsx`
+  - `src/renderer/components/VolumeControl.tsx`
+
+**Exports:**
+- `AudioPlayer` component
+
+## Critical Dependency Versions
+
+### Core Dependencies
+```json
+{
+  "electron": "28.x.x",
+  "react": "18.x.x",
+  "typescript": "5.x.x",
+  "wavesurfer.js": "7.9.5",
+  "zustand": "4.x.x",
+  "@emotion/styled": "11.x.x",
+  "wavefile": "11.x.x",
+  "fast-xml-parser": "4.x.x"
+}
+```
+
+### Version Compatibility Notes
+- **WaveSurfer MUST be v7.x** - v6 and v8 have breaking API changes
+- **React 18.x** - v19 had compatibility issues with Emotion
+- **TypeScript 5.x** - Required for proper Electron typing
+- **Zustand 4.x** - v5 requires migration to new API
+
+## File System Architecture
+
+### Source Structure
+```
+src/
+├── types.ts                     # Shared interfaces
+├── ipc-api.ts                  # IPC contract
+├── main/                       # Electron main process
+│   ├── index.ts               # Entry point & IPC handlers
+│   └── services/              # Business logic
+│       ├── MetadataService.ts # Audio metadata processing
+│       └── FilenameParser.ts  # Filename pattern matching
+├── preload.ts                 # IPC security bridge
+└── renderer/                  # React application
+    ├── index.tsx             # React entry point
+    ├── index.html            # HTML template
+    ├── store.ts              # Zustand state management
+    ├── TableRenderer.tsx     # Main app component
+    ├── fonts/                # Custom fonts
+    ├── types.d.ts           # Font declarations
+    └── components/          # React components
+        ├── AudioPlayer.tsx   # Fixed audio player
+        ├── Controls.tsx      # Playback controls
+        ├── VolumeControl.tsx # Volume slider
+        ├── ErrorDialog.tsx   # Error modal
+        └── FilenameMappingModal.tsx # Batch edit modal
+```
+
+### Build Configuration Files
+```
+├── forge.config.ts           # Electron Forge configuration
+├── package.json             # Dependencies & scripts
+├── tsconfig.json           # TypeScript configuration
+├── webpack.main.config.ts  # Main process webpack
+├── webpack.renderer.config.ts # Renderer webpack
+├── webpack.plugins.ts      # Webpack plugins
+└── webpack.rules.ts        # Webpack loaders
+```
+
+## State Flow Architecture
+
+### Zustand Store Structure
+```typescript
+interface AppState {
+  // File Management
+  files: Wavedata[];
+  originalFiles: Wavedata[];
+  filteredFiles: Wavedata[];
+  selectedRows: number[];
+  
+  // UI State
+  isLoading: boolean;
+  error: string | null;
+  searchText: string;
+  searchField: string;
+  isDirty: boolean;
+  
+  // Audio Player State
+  audioPlayer: {
+    currentFile: Wavedata | null;
+    isPlaying: boolean;
+    isLoading: boolean;
+    currentTime: number;        // ⚠️ Avoid subscribing to this
+    duration: number;
+    isMinimized: boolean;
+    waveformReady: boolean;
+    audioCache: Map<string, ArrayBuffer>;
+  };
+  
+  // Actions (methods)
+  setFiles: (files: Wavedata[]) => void;
+  loadAudioFile: (file: Wavedata) => void;
+  togglePlayPause: () => void;
+  stopAudio: () => void;
+  // ... other actions
+}
+```
+
+## IPC Communication Flow
+
+### Channel Mapping
+```typescript
+export const CHANNELS = {
+  // File Operations
+  readMetadata: 'read-metadata',
+  writeMetadata: 'write-metadata',
+  scanDirectory: 'scan-directory',
+  openDirectory: 'open-directory',
+  checkIsDirectory: 'check-is-directory',
+  
+  // Audio Operations
+  loadAudioFile: 'load-audio-file',
+  
+  // Batch Operations
+  batchUpdateMetadata: 'batch-update-metadata',
+  batchExtractMetadata: 'batch-extract-metadata',
+  
+  // Agent System
+  getAgentStatuses: 'get-agent-statuses',
+  toggleAgent: 'toggle-agent',
+  triggerAgent: 'trigger-agent',
+  
+  // Development
+  debugLog: 'debug-log'
+};
+```
+
+### Communication Pattern
+```
+Renderer → Preload → Main Process → Service → File System
+    ↑                                   ↓
+    ←─────── Response ←─────────────────
+```
+
+## Performance Monitoring Patterns
+
+### Critical Performance Metrics
+1. **Component Render Count** - Watch for infinite re-renders
+2. **Store Subscription Patterns** - Avoid subscribing to `currentTime`
+3. **WaveSurfer Instance Health** - Monitor creation/destruction
+4. **IPC Response Times** - File loading and metadata operations
+5. **Memory Usage** - Audio cache management
+
+### Debug Logging Categories
+```
+[MAIN]                 # Main process operations
+[RENDERER-*]           # Renderer process logs
+[PLAYER-*]             # AudioPlayer component
+[Controls]             # Playback controls
+[STORE]                # State management
+[IPC]                  # IPC communication
+[WAVESURFER]           # WaveSurfer events
+```
+
+## Critical Configuration Points
+
+### Webpack Entry Points (MUST BE EXACT)
+```typescript
+// webpack.main.config.ts
+entry: './src/main/index.ts'
+
+// forge.config.ts
+renderer: {
+  html: './src/renderer/index.html',
+  js: './src/renderer/index.tsx',
+  preload: {
+    js: './src/preload.ts'
+  }
+}
+```
+
+### WaveSurfer v7 Configuration
+```typescript
+WaveSurfer.create({
+  container: waveformRef.current,
+  waveColor: '#4a5568',
+  progressColor: '#007aff',
+  cursorColor: '#007aff',
+  height: 50,
+  normalize: true,
+  barWidth: 2,
+  barGap: 1,
+  barRadius: 2,
+  interact: true,  // CRITICAL: Enables click-to-seek
+});
+```
+
+## Development Environment Setup
+
+### Required Environment
+- Node.js 18.x or 20.x
+- npm 9.x+
+- macOS/Windows/Linux with graphics support
+
+### Development Commands
+```bash
+npm install          # Install dependencies
+npm start           # Development server with hot reload
+npm run lint        # TypeScript and ESLint checking
+npm run package     # Create distributable package
+npm run make        # Create platform installers
+```
+
+### Build Cache Management
+```bash
+rm -rf .webpack     # Clear webpack cache
+rm -rf node_modules # Full dependency refresh
+npm install         # Reinstall dependencies
+```
+
+## Common Integration Patterns
+
+### Adding New Components
+1. Import necessary dependencies (React, styled-components, store)
+2. Use `useStore` with `shallow` for state subscriptions
+3. Use `useCallback` for stable function references
+4. Avoid subscribing to frequently-changing state (like `currentTime`)
+5. Add component to main `TableRenderer.tsx`
+
+### Adding New IPC Channels
+1. Add channel name to `CHANNELS` in `src/ipc-api.ts`
+2. Add method signature to `IElectronAPI` interface
+3. Implement handler in `src/main/index.ts`
+4. Implement bridge method in `src/preload.ts`
+5. Use in renderer via `window.electronAPI.methodName()`
+
+### Adding New Store State
+1. Add interface properties to `AppState` in `src/renderer/store.ts`
+2. Initialize in store creation
+3. Add action methods for state updates
+4. Use with `useStore` hook and `shallow` comparison
+
+## Emergency Recovery Procedures
+
+### Application Won't Start
+1. Check webpack entry points in `forge.config.ts`
+2. Verify preload script path exists
+3. Clear `.webpack` cache directory
+4. Check TypeScript compilation errors
+5. Verify all imports are correct
+
+### Audio System Failure
+1. Check WaveSurfer v7 API usage (no `isReady` property)
+2. Verify `interact: true` in WaveSurfer config
+3. Check that `waveformRef.current` exists before initialization
+4. Verify global WaveSurfer instance is exposed
+5. Check for infinite re-render loops
+
+### IPC Communication Broken
+1. Verify preload script is loading correctly
+2. Check that `contextBridge.exposeInMainWorld` is called
+3. Ensure all channel names match between files
+4. Verify security settings allow IPC communication
+5. Check for preload script errors in console
+
+This comprehensive module architecture map ensures that any developer can understand the complete system structure and make informed changes without breaking critical functionality.

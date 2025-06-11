@@ -1,0 +1,365 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# 3. Internal Logic & Metadata
+
+This document covers the core business logic, including metadata extraction, IPC communication, audio player integration, and type safety.
+
+> **🔗 For complete service architecture and IPC channel mapping, see [Rule 4: Module Architecture & System Map](.cursor/rules/4-module-architecture.mdc)**
+
+## Metadata Extraction (`MetadataService.ts`)
+
+The core logic resides in `src/main/services/MetadataService.ts`. It's responsible for reading and writing metadata from `.wav` files.
+
+### Extraction Strategy
+
+The service uses a hierarchical approach to find metadata, ensuring the most accurate data is used. The priority is:
+
+1.  **iXML Chunk**: Checked first for structured production data (Project, Scene, Take).
+2.  **Filename Parsing**: The filename itself is parsed for key information as a primary source for structure.
+3.  **BWF (BEXT) Chunk**: Used as a fallback and for broadcast-specific data (Originator, Description).
+
+### 1. Filename Parsing
+
+A regular expression is used to parse filenames with a specific convention.
+
+- **File Pattern**: `PR2_Allen_Sc5.14D_01.wav`
+- **Regex**: `/^([^_]+)_([^_]+)_Sc([\d\.]+)([A-Z]?)_(\d+)\.wav$/i`
+- **Logic (`parseFilename` function)**:
+  - Extracts `Show` (`PR2`), `Category` (`Allen`), `Scene` (`5.14`), `Slate` (`D`), and `Take` (`01`).
+  - Derives `SubCategory` from the first part of the scene number (`5`).
+- **Current Scene/Slate Logic**:
+  - `Sc5.14D` is correctly parsed into `scene: '5.14'` and `slate: 'D'`.
+
+### 2. iXML & BWF Data
+
+- **iXML**: The service uses `fast-xml-parser` to parse the iXML chunk into a JavaScript object. It looks for common tags like `PROJECT`, `SCENE`, and `TAKE`.
+- **BWF**: It uses the `wavefile` library to access the `bext` chunk and extracts fields like `description` and `originator`. The library requires specific method calls (`getiXML`, `setiXML`, `wav.bext = ...`) that were fixed during debugging.
+
+---
+
+## Audio Player State Management
+
+### Store Architecture
+
+The audio player state is managed in the Zustand store under the `audioPlayer` namespace:
+
+```typescript
+interface AudioPlayerState {
+	currentFile: Wavedata | null;
+	isPlaying: boolean;
+	isLoading: boolean;
+	currentTime: number;
+	duration: number;
+	isMinimized: boolean;
+	waveformReady: boolean;
+	audioCache: Map<string, ArrayBuffer>;
+}
+
+interface AppState {
+	audioPlayer: AudioPlayerState;
+	// ... other state
+}
+```
+
+### Critical State Management Patterns
+
+#### 1. Audio Loading and Caching
+```typescript
+// ✅ CORRECT: Efficient audio loading with caching
+const loadAudioFile = async (file: Wavedata) => {
+	set((state) => ({
+		audioPlayer: {
+			...state.audioPlayer,
+			currentFile: file,
+			isLoading: true,
+			isPlaying: true, // Auto-play on load
+		},
+	}));
+
+	try {
+		let audioData = state.audioCache.get(file.filePath);
+		if (!audioData) {
+			console.log('[STORE] Audio not in cache, fetching:', file.filePath);
+			audioData = await window.electronAPI.loadAudioFile(file.filePath);
+			set((state) => ({
+				audioCache: new Map(state.audioCache.set(file.filePath, audioData)),
+			}));
+		}
+	} catch (error) {
+		console.error('[STORE] Failed to load audio:', error);
+		set((state) => ({
+			audioPlayer: { ...state.audioPlayer, isLoading: false, isPlaying: false },
+		}));
+	}
+};
+```
+
+#### 2. Performance-Optimized Time Updates
+```typescript
+// ✅ CORRECT: Throttled time updates to prevent re-renders
+const setCurrentTime = (time: number) => {
+	// Don't update store state for currentTime to avoid re-renders
+	// Use direct DOM manipulation in AudioPlayer component instead
+	// Only update store for major state changes
+};
+
+// ❌ WRONG: Frequent store updates cause re-renders
+const setCurrentTime = (time: number) => {
+	set((state) => ({
+		audioPlayer: { ...state.audioPlayer, currentTime: time },
+	}));
+};
+```
+
+#### 3. Stable Action Functions
+```typescript
+// ✅ CORRECT: Actions that can be called without causing re-renders
+const togglePlayPause = () => {
+	const state = get();
+	if (!state.audioPlayer.currentFile) return;
+	
+	set((state) => ({
+		audioPlayer: {
+			...state.audioPlayer,
+			isPlaying: !state.audioPlayer.isPlaying,
+		},
+	}));
+};
+
+const stopAudio = () => {
+	set((state) => ({
+		audioPlayer: {
+			...state.audioPlayer,
+			isPlaying: false,
+			currentTime: 0,
+		},
+	}));
+};
+```
+
+## WaveSurfer v7 Integration
+
+### Critical Implementation Details
+
+#### 1. Version-Specific API Usage
+```typescript
+// ✅ CORRECT: WaveSurfer v7 initialization
+const ws = WaveSurfer.create({
+	container: waveformRef.current,
+	waveColor: '#4a5568',
+	progressColor: '#007aff',
+	cursorColor: '#007aff',
+	height: 50,
+	normalize: true,
+	barWidth: 2,
+	barGap: 1,
+	barRadius: 2,
+	interact: true, // CRITICAL: Enables click-to-seek
+});
+
+// ❌ WRONG: v6 API patterns that break in v7
+if (ws && ws.isReady) { /* isReady doesn't exist in v7 */ }
+```
+
+#### 2. Event Handling Patterns
+```typescript
+// ✅ CORRECT: v7 event handling
+ws.on('ready', () => {
+	console.log('[PLAYER-WAVESURFER] Ready');
+	setWaveformReady(true);
+	const duration = ws.getDuration();
+	useStore.getState().setDuration(duration);
+});
+
+// Throttled time updates for performance
+let lastTimeUpdate = 0;
+ws.on('audioprocess', (currentTime) => {
+	const now = Date.now();
+	if (now - lastTimeUpdate > 100) { // Update only every 100ms
+		setCurrentTime(currentTime);
+		lastTimeUpdate = now;
+	}
+});
+
+// Click-to-seek functionality
+ws.on('click', (relativeX) => {
+	console.log('[PLAYER-WAVESURFER] Clicked at position:', relativeX);
+	ws.seekTo(relativeX); // v7 handles seeking automatically
+});
+```
+
+#### 3. Ready State Management
+```typescript
+// ✅ CORRECT: Local ready state tracking for v7
+const isWaveformReadyRef = useRef(false);
+
+const setWaveformReady = useCallback((ready: boolean) => {
+	isWaveformReadyRef.current = ready;
+	useStore.getState().setWaveformReady(ready);
+}, []);
+
+// Use in effects
+const stopAudio = useCallback(() => {
+	const ws = wavesurferRef.current;
+	if (ws && isWaveformReadyRef.current) {
+		ws.stop();
+	}
+	useStore.getState().stopAudio();
+}, []);
+```
+
+### Performance Optimizations
+
+#### 1. Direct DOM Manipulation for Time Display
+```typescript
+// ✅ CORRECT: Bypass React for frequently updated elements
+const updateTimeDisplay = useCallback((currentTime: number) => {
+	if (timeDisplayRef.current) {
+		const formatTime = (seconds: number): string => {
+			if (isNaN(seconds) || seconds < 0) return '0:00';
+			const mins = Math.floor(seconds / 60);
+			const secs = Math.floor(seconds % 60);
+			return `${mins}:${secs.toString().padStart(2, '0')}`;
+		};
+
+		const duration = useStore.getState().audioPlayer.duration;
+		timeDisplayRef.current.innerHTML = `
+			<div>${formatTime(currentTime)}</div>
+			<div style="color: #666; font-size: 10px;">${formatTime(duration)}</div>
+		`;
+	}
+}, []);
+```
+
+#### 2. Global WaveSurfer Instance Access
+```typescript
+// ✅ CORRECT: Enable cross-component communication
+useEffect(() => {
+	const ws = WaveSurfer.create({...});
+	wavesurferRef.current = ws;
+	
+	// Expose globally for cross-component access
+	(window as any).wavesurferInstance = ws;
+	
+	return () => {
+		ws.destroy();
+		delete (window as any).wavesurferInstance;
+	};
+}, []);
+```
+
+#### 3. Efficient Component Subscriptions
+```typescript
+// ✅ CORRECT: Selective state subscriptions
+const { currentFile, isLoading, isPlaying, isMinimized } = useStore(
+	(state) => ({
+		currentFile: state.audioPlayer.currentFile,
+		isLoading: state.audioPlayer.isLoading,
+		isPlaying: state.audioPlayer.isPlaying,
+		isMinimized: state.audioPlayer.isMinimized,
+		// Explicitly exclude currentTime to prevent re-renders
+	}),
+	shallow
+);
+
+// ❌ WRONG: Subscribing to frequently changing state
+const { currentTime } = useStore((state) => ({ 
+	currentTime: state.audioPlayer.currentTime 
+}));
+```
+
+## Type Safety & IPC Contract
+
+To prevent bugs between the main and renderer processes, the application uses a strict, shared API contract.
+
+### 1. Shared Types (`src/types.ts`)
+
+This file defines all the core data structures used across the application.
+
+- **`Wavedata`**: The main interface for all file metadata.
+- **`BWFMetadata`**: Fields use **PascalCase** (e.g., `Description`, `Originator`). This is a critical convention.
+- **`iXMLMetadata`**: A flexible object for parsed XML data.
+- **`FileInfo`**: Basic file stats like size, sample rate, etc.
+
+### 2. IPC API Contract (`src/ipc-api.ts`)
+
+This is the single source of truth for all IPC communication.
+
+- **`CHANNELS`**: An object containing all IPC channel names as constants. This prevents typos when defining handlers and listeners.
+  ```typescript
+  export const CHANNELS = {
+  	readMetadata: 'read-metadata',
+  	writeMetadata: 'write-metadata',
+  	loadAudioFile: 'load-audio-file', // Audio-specific channel
+  	// ... etc
+  };
+  ```
+- **`IElectronAPI`**: A TypeScript interface that defines the entire API exposed from the main process to the renderer. `preload.ts` _must_ implement this interface fully.
+
+### 3. Preload Script as a Bridge (`src/preload.ts`)
+
+The preload script securely exposes the API defined in `ipc-api.ts` to the renderer's `window` object.
+
+```typescript
+// In preload.ts
+import { contextBridge, ipcRenderer } from 'electron';
+import { CHANNELS, IElectronAPI } from '../ipc-api';
+
+const electronAPI: IElectronAPI = {
+	readMetadata: (filePath) =>
+		ipcRenderer.invoke(CHANNELS.readMetadata, filePath),
+	loadAudioFile: (filePath) =>
+		ipcRenderer.invoke(CHANNELS.loadAudioFile, filePath),
+	// ... all other API methods
+};
+
+contextBridge.exposeInMainWorld('electronAPI', electronAPI);
+```
+
+## Critical Anti-Patterns to Avoid
+
+### 1. WaveSurfer v6 API Usage
+```typescript
+// ❌ WRONG: v6 patterns that break in v7
+if (ws.isReady) { /* Property doesn't exist in v7 */ }
+ws.on('waveform-ready', () => {}); // Event doesn't exist in v7
+
+// ✅ CORRECT: v7 patterns
+if (isWaveformReadyRef.current) { /* Use local state */ }
+ws.on('ready', () => {}); // Correct v7 event
+```
+
+### 2. Frequent Store Updates
+```typescript
+// ❌ WRONG: Causes infinite re-renders
+const [currentTime, setCurrentTime] = useState(0);
+useEffect(() => {
+	ws.on('audioprocess', setCurrentTime);
+}, []);
+
+// ✅ CORRECT: Direct DOM updates
+ws.on('audioprocess', (time) => updateTimeDisplay(time));
+```
+
+### 3. Unstable Function References
+```typescript
+// ❌ WRONG: Creates new functions on every render
+useEffect(() => {
+	const getData = () => useStore.getState().getAudioDataFromCache(filePath);
+	// ... effect logic
+}, [filePath, useStore.getState().getAudioDataFromCache]); // Unstable reference
+
+// ✅ CORRECT: Stable callback references
+const getAudioDataFromCache = useCallback((filePath: string) => {
+	return useStore.getState().getAudioDataFromCache(filePath);
+}, []);
+
+useEffect(() => {
+	// ... effect logic
+}, [filePath, getAudioDataFromCache]); // Stable reference
+```
+
+This architecture ensures that any mismatch between the API definition, implementation, and usage will result in a clear TypeScript error, rather than a runtime bug, while maintaining optimal performance for audio playback.

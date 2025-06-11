@@ -1,0 +1,255 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# 2. UI and Design System
+
+This document outlines the design philosophy, component architecture, and state management for the renderer process.
+
+> **🔗 For complete component import/export mapping, see [Rule 4: Module Architecture & System Map](.cursor/rules/4-module-architecture.mdc)**
+
+## Design Language: "Liquid Glass"
+
+The application's aesthetic is inspired by Apple's "Liquid Glass" design philosophy, emphasizing a dark theme with transparency, depth, and clean typography.
+
+- **Color Palette**: Dark theme with glass-like transparency and blur effects.
+- **Typography**: `Inter` font family for modern, clean readability.
+- **Layout**: A two-column layout for efficient metadata editing is the goal, currently implemented as a single-table view in `TableRenderer.tsx`.
+- **Core Technology**: The UI is built with React and styled using Emotion.
+
+### Core UI Components
+
+The primary UI is located in `src/renderer/TableRenderer.tsx`. Key styled components include:
+
+- **Containers**: Use `background` with `rgba` colors and `backdrop-filter: blur(20px);` to create the glass effect.
+- **Buttons & Inputs**: Styled to be semi-transparent with hover and focus effects that increase brightness or add a subtle glow.
+- **Layout**: Uses CSS Grid for the main layout and Flexbox for smaller component groups.
+
+### Example: Glass Container
+
+```typescript
+// Example from the project's styling
+const AppContainer = styled.div`
+	background: linear-gradient(
+		135deg,
+		rgba(30, 30, 40, 0.95) 0%,
+		rgba(20, 20, 30, 0.98) 100%
+	);
+	backdrop-filter: blur(20px);
+	border: 1px solid rgba(255, 255, 255, 0.1);
+	min-height: 100vh;
+`;
+```
+
+## AudioPlayer Design System
+
+### Fixed-Position Player Architecture
+
+The `AudioPlayer` component is a **fixed-position element** at the bottom of the screen, implementing the "Liquid Glass" design:
+
+```typescript
+const PlayerContainer = styled.div<{ isVisible: boolean }>`
+	position: fixed;
+	bottom: 0;
+	left: 0;
+	right: 0;
+	height: 80px;
+	background: rgba(20, 20, 30, 0.9);
+	backdrop-filter: blur(15px);
+	border-top: 1px solid rgba(255, 255, 255, 0.1);
+	transform: translateY(${(props) => (props.isVisible ? '0' : '100%')});
+	transition: transform 0.3s ease-in-out;
+`;
+```
+
+### Clickable Waveform Timeline
+
+**CRITICAL**: The waveform serves as both visualization AND interactive timeline:
+
+#### WaveSurfer v7 Configuration
+```typescript
+const ws = WaveSurfer.create({
+	container: waveformRef.current,
+	waveColor: '#4a5568',
+	progressColor: '#007aff',
+	cursorColor: '#007aff',
+	height: 50,
+	normalize: true,
+	barWidth: 2,
+	barGap: 1,
+	barRadius: 2,
+	interact: true, // CRITICAL: Enables click-to-seek
+});
+```
+
+#### Click-to-Seek Implementation
+```typescript
+// Click event handler for seeking
+ws.on('click', (relativeX) => {
+	console.log('[PLAYER-WAVESURFER] Clicked at position:', relativeX);
+	const duration = ws.getDuration();
+	const seekTime = relativeX * duration;
+	ws.seekTo(relativeX); // WaveSurfer v7 handles seeking
+});
+
+// Interaction event for visual feedback
+ws.on('interaction', () => {
+	console.log('[PLAYER-WAVESURFER] Waveform clicked for seeking');
+});
+```
+
+### Component Layout Structure
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    PlayerContainer (Fixed)                     │
+├─────────────┬─────────────────────────────────┬─────────────────┤
+│  Controls   │        WaveformContainer        │  TimeDisplay &  │
+│             │      (Clickable Timeline)       │  VolumeControl  │
+│             │                                 │                 │
+│ ▶ ⏸ ⏹     │  ▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬  │    2:34 / 4:52  │
+│             │  ▲ Click anywhere to seek       │       🔊        │
+└─────────────┴─────────────────────────────────┴─────────────────┘
+```
+
+### Critical Design Principles
+
+#### 1. No Separate Progress Bar
+- **❌ WRONG**: Creating a separate `<ProgressBar>` component causes infinite re-renders
+- **✅ CORRECT**: Use WaveSurfer's built-in progress visualization
+
+#### 2. Direct DOM Updates for Performance
+```typescript
+// ✅ CORRECT: Direct DOM manipulation for time display
+const TimeDisplay = styled.div`
+	font-family: 'Monaco', 'Menlo', monospace;
+	font-size: 12px;
+	color: #ccc;
+`;
+
+const updateTimeDisplay = useCallback((currentTime: number) => {
+	if (timeDisplayRef.current) {
+		const formatTime = (seconds: number): string => {
+			const mins = Math.floor(seconds / 60);
+			const secs = Math.floor(seconds % 60);
+			return `${mins}:${secs.toString().padStart(2, '0')}`;
+		};
+		
+		const duration = useStore.getState().audioPlayer.duration;
+		timeDisplayRef.current.innerHTML = `
+			<div>${formatTime(currentTime)}</div>
+			<div style="color: #666; font-size: 10px;">${formatTime(duration)}</div>
+		`;
+	}
+}, []);
+```
+
+#### 3. Glass Effect Waveform Container
+```typescript
+const WaveformContainer = styled.div`
+	flex-grow: 1;
+	height: 60px;
+	cursor: pointer;
+	background: rgba(0, 0, 0, 0.3);
+	border-radius: 8px;
+	padding: 5px;
+`;
+```
+
+## UI Architecture
+
+- **Entry Point**: `src/renderer/index.tsx` is the main entry point. It sets up an `ErrorBoundary` and renders the main app component.
+- **Main Component**: `src/renderer/TableRenderer.tsx` contains the primary UI, including the file table, buttons, and drag-and-drop functionality.
+- **AudioPlayer**: `src/renderer/components/AudioPlayer.tsx` is the fixed audio player component with integrated timeline.
+- **Styling**: Emotion's `styled` components are used throughout. There is no separate CSS file; all styles are co-located with their components.
+- **Fonts**: Custom fonts like `Inter` are located in `src/renderer/fonts` and declared in `src/renderer/types.d.ts` for TypeScript compatibility.
+
+## State Management
+
+The UI uses **Zustand** for global state management.
+
+- **Store Definition**: The store is defined in `src/renderer/store.ts`.
+- **Audio Player State**: Managed in the `audioPlayer` namespace within the store:
+  ```typescript
+  interface AppState {
+  	audioPlayer: {
+  		currentFile: Wavedata | null;
+  		isPlaying: boolean;
+  		isLoading: boolean;
+  		currentTime: number;
+  		duration: number;
+  		isMinimized: boolean;
+  		waveformReady: boolean;
+  	};
+  	// ... other state
+  }
+  ```
+- **Performance Considerations**: Components should avoid subscribing to `currentTime` to prevent re-renders.
+
+## File Handling in the UI
+
+1.  **Drag and Drop**: The main container in `TableRenderer.tsx` acts as a drop zone. The `handleDrop` function identifies `.wav` files and calls a state management function to process them.
+2.  **File Dialog**: Buttons trigger IPC calls (`window.electronAPI.openDirectory` or `window.electronAPI.openFile`) to the main process, which opens the native file dialog.
+3.  **Display**: The files returned from the main process are added to the Zustand store, which causes the `TableRenderer` component to re-render and display the new metadata in the table.
+4.  **Audio Loading**: Clicking the play button (▶) in the table loads the audio file into the AudioPlayer component and starts playback.
+
+## Critical UI Patterns to Maintain
+
+### 1. WaveSurfer Integration Pattern
+```typescript
+// ✅ CORRECT: Always render the waveform container
+const AudioPlayer: React.FC = () => {
+	// ... component logic
+	
+	return (
+		<PlayerContainer isVisible={isVisible}>
+			<Controls />
+			<WaveformContainer ref={waveformRef} /> {/* Always rendered */}
+			<TimeDisplay ref={timeDisplayRef}>
+				<div>0:00</div>
+				<div style={{ color: '#666', fontSize: '10px' }}>0:00</div>
+			</TimeDisplay>
+			<VolumeControl />
+		</PlayerContainer>
+	);
+};
+
+// ❌ WRONG: Conditional rendering breaks WaveSurfer init
+{currentFile && <WaveformContainer ref={waveformRef} />}
+```
+
+### 2. Event Handler Pattern
+```typescript
+// ✅ CORRECT: Stable callback functions
+const handleTogglePlayPause = useCallback(() => {
+	console.log('[Controls] Toggle play/pause clicked');
+	useStore.getState().togglePlayPause();
+}, []);
+
+// ❌ WRONG: Inline functions cause re-renders
+onClick={() => useStore.getState().togglePlayPause()}
+```
+
+### 3. Global WaveSurfer Access Pattern
+```typescript
+// ✅ CORRECT: Expose WaveSurfer globally for cross-component access
+useEffect(() => {
+	const ws = WaveSurfer.create({...});
+	wavesurferRef.current = ws;
+	(window as any).wavesurferInstance = ws; // Global access
+	
+	return () => {
+		ws.destroy();
+		delete (window as any).wavesurferInstance;
+	};
+}, []);
+```
+
+## Common UI Anti-Patterns to Avoid
+
+1. **❌ Creating separate progress bars** - Use WaveSurfer's built-in progress
+2. **❌ Subscribing to `currentTime` in React** - Causes infinite re-renders  
+3. **❌ Using WaveSurfer v6 API patterns** - v7 has breaking changes
+4. **❌ Conditional rendering of waveform container** - Breaks initialization
+5. **❌ Using React state for frequently updated values** - Use direct DOM manipulation

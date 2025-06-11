@@ -1,0 +1,205 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# 1. Project Overview & Workflow
+
+This document provides a high-level overview of the application architecture, development workflow, and critical connection points.
+
+**📋 Complete Documentation System:**
+- **Rule 1 (This File)**: Project Overview & Workflow
+- **Rule 2**: UI and Design System  
+- **Rule 3**: Internal Logic & Metadata
+- **Rule 4**: Module Architecture & System Map
+
+## Architecture Overview
+
+This is a professional audio metadata editor built with Electron, React, and TypeScript. The application focuses on BWF (Broadcast Wave Format) and iXML metadata standards with integrated audio playback.
+
+- **Main Process**: `src/main/index.ts` - Electron main process entry point. Handles file system operations, metadata processing, and window management.
+- **Renderer Process**: `src/renderer/index.tsx` (which renders `TableRenderer.tsx`) - The React UI application.
+- **Preload Script**: `src/preload.ts` - A secure bridge for IPC communication between the main and renderer processes.
+- **Shared Types**: `src/types.ts` & `src/ipc-api.ts` - Shared TypeScript interfaces and API contracts.
+
+> **🔗 For complete import/export mapping and dependency graphs, see [Rule 4: Module Architecture & System Map](mdc:.cursor/rules/4-module-architecture.mdc)**
+
+### Audio Player Architecture
+
+The audio player is a **fixed-position component** at the bottom of the screen using **WaveSurfer v7** for waveform visualization and playback:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                      AUDIO PLAYER SYSTEM                       │
+├─────────────────┬─────────────────┬─────────────────────────────┤
+│   AudioPlayer   │   Store State   │      WaveSurfer v7          │
+│   Component     │   Management    │      Integration            │
+│                 │                 │                             │
+│ ├─Controls      │ ├─audioPlayer   │ ├─Clickable Waveform        │
+│ ├─WaveformCont. │ ├─currentFile   │ ├─Seeking on Click          │
+│ ├─TimeDisplay   │ ├─isPlaying     │ ├─Visual Progress           │
+│ └─VolumeControl │ └─currentTime   │ └─Event Handling            │
+│                 │                 │                             │
+└─────────────────┴─────────────────┴─────────────────────────────┘
+```
+
+### Module Connection Map
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         ELECTRON APP                            │
+├─────────────────────┬─────────────────┬─────────────────────────┤
+│   MAIN PROCESS      │   PRELOAD       │    RENDERER PROCESS     │
+│                     │                 │                         │
+│ src/main/index.ts   │ src/preload.ts  │  src/renderer/index.tsx │
+│       │             │       │         │            │            │
+│       ├─services/   │       │         │            ├─store.ts   │
+│       │  └─Metadata │       │         │            ├─TableRend..│
+│       │    Service  │       │         │            └─components/│
+│       │             │   IPC BRIDGE    │              └─AudioPlayer/│
+│       └─────────────┼─────────────────┼─────────────────────────┤
+│                     │                 │                         │
+└─────────────────────┴─────────────────┴─────────────────────────┘
+                      │                 │
+                ┌─────┴─────────────────┴─────┐
+                │     SHARED MODULES          │
+                │                             │
+                │ src/types.ts (interfaces)   │
+                │ src/ipc-api.ts (API contract)│
+                └─────────────────────────────┘
+```
+
+### Module Dependency Flow
+
+1.  **Types & API First**: `src/types.ts` and `src/ipc-api.ts` define all shared interfaces and the IPC contract.
+2.  **Services Layer**: `src/main/services/` implements the core business logic (e.g., `MetadataService`).
+3.  **Main Process**: `src/main/index.ts` coordinates IPC handlers and services.
+4.  **Preload Bridge**: `src/preload.ts` securely exposes the main process APIs to the renderer.
+5.  **Renderer UI**: `src/renderer/index.tsx` and its components consume the exposed APIs.
+6.  **State Management**: `src/renderer/store.ts` (Zustand) manages the UI's state including audio player state.
+7.  **Audio Player**: `src/renderer/components/AudioPlayer.tsx` handles WaveSurfer integration and audio playback.
+
+---
+
+## Development Workflow
+
+### Prerequisites
+
+- Node.js and npm installed
+- Run `npm install` to install all dependencies.
+
+### Key Commands
+
+- `npm start`: Start the development server with hot reloading.
+- `npm run package`: Package the application for distribution.
+- `npm run make`: Create platform-specific installers.
+- `npm run lint`: Run the ESLint linter.
+
+---
+
+## Critical Connection Points & Troubleshooting
+
+This section outlines critical areas that can break the application if misconfigured.
+
+### 1. Webpack & Forge Entry Points
+
+**CRITICAL**: These paths must be exact.
+
+- **`webpack.main.config.ts`**: The entry must be `'./src/main/index.ts'`.
+- **`forge.config.ts`**: The renderer `entryPoints` must point to the correct files:
+  ```typescript
+  {
+    html: './src/renderer/index.html',
+    js: './src/renderer/index.tsx', // Main UI entry point
+    name: 'main_window',
+    preload: {
+      js: './src/preload.ts', // IPC bridge
+    },
+  }
+  ```
+
+### 2. Service Export/Import Chain
+
+**CRITICAL**: The `MetadataService` must be instantiated and exported correctly.
+
+- **`src/main/services/MetadataService.ts`**:
+  ```typescript
+  export class MetadataService {
+  	/* ... */
+  }
+  export const metadataService = new MetadataService(); // Export instance
+  ```
+- **`src/main/index.ts`**:
+  ```typescript
+  import { metadataService } from './services/MetadataService'; // Import instance
+  // ... then use `metadataService` in IPC handlers
+  ```
+
+### 3. AudioPlayer Critical Architecture
+
+**CRITICAL**: The AudioPlayer has specific requirements that must be maintained:
+
+#### WaveSurfer v7 Integration
+- **Version**: Must use WaveSurfer v7.x (NOT v6 or v8+)
+- **API Changes**: v7 removed `isReady` property - use local state tracking instead
+- **Events**: Use v7 event names: `ready`, `audioprocess`, `click`, `interaction`
+
+#### State Management
+- **Store Integration**: AudioPlayer state is in `store.audioPlayer` namespace
+- **Performance**: Avoid subscribing to `currentTime` in React components (causes re-renders)
+- **Direct DOM Updates**: Use `timeDisplayRef` for frequently updating time display
+
+#### Critical Code Patterns
+```typescript
+// ✅ CORRECT: Local ready state tracking (v7)
+const isWaveformReadyRef = useRef(false);
+const setWaveformReady = useCallback((ready: boolean) => {
+  isWaveformReadyRef.current = ready;
+  useStore.getState().setWaveformReady(ready);
+}, []);
+
+// ❌ WRONG: Using isReady property (v6 only)
+if (ws && ws.isReady) { /* This breaks in v7 */ }
+
+// ✅ CORRECT: Direct DOM updates for performance
+const updateTimeDisplay = useCallback((currentTime: number) => {
+  if (timeDisplayRef.current) {
+    timeDisplayRef.current.innerHTML = `${formatTime(currentTime)}`;
+  }
+}, []);
+
+// ❌ WRONG: React state updates for time (causes re-renders)
+const [currentTime, setCurrentTime] = useState(0);
+```
+
+### 4. Emergency Debugging Checklist
+
+If the app fails to start (especially silently):
+
+1.  **Verify Webpack Main Entry**: Check that `webpack.main.config.ts` points to `src/main/index.ts`.
+2.  **Check `forge.config.ts`**: Ensure renderer entry points are correct and there are no port conflicts (`port: 3001`, `loggerPort: 9002`).
+3.  **Inspect the IPC Contract**: Ensure `src/main/index.ts` (handlers), `src/preload.ts` (bridge), and `src/ipc-api.ts` (interface) are all in sync. A mismatch will break the app.
+4.  **Check for Type Errors**: Run `npm run lint` or check the console during `npm start` for TypeScript errors. The `package` command (`npm run package`) is also effective at finding hidden TS errors.
+5.  **Delete `.webpack` folder**: Sometimes this cache causes issues. Delete it and try starting again.
+6.  **Check Dependencies**: Ensure React, Emotion, and TypeScript versions are compatible. Downgrading from React 19 to 18 and updating TS to 5.x was a key fix.
+
+### 5. AudioPlayer Specific Debugging
+
+If the AudioPlayer breaks:
+
+1. **Check WaveSurfer Version**: Ensure using v7.x, not v6 or v8+
+2. **Verify State Subscriptions**: Avoid subscribing to `currentTime` in components
+3. **Check Event Handlers**: Use v7 event names (`audioprocess`, not `waveform-ready`)
+4. **Inspect DOM Elements**: Ensure `waveformRef.current` exists before WaveSurfer init
+5. **Review Console Logs**: Look for `[PLAYER-*]` and `[Controls]` debug messages
+6. **Test IPC Bridge**: Verify `window.electronAPI` is available (not fallback API)
+
+### 6. Performance Issues
+
+If experiencing lag or infinite re-renders:
+
+1. **Remove ProgressBar**: Ensure no separate progress bar component exists
+2. **Check Zustand Subscriptions**: Use `shallow` for object subscriptions
+3. **Verify useCallback**: Ensure stable function references in effects
+4. **Direct DOM Manipulation**: Use for frequently updated displays (time, progress)
+5. **Throttle Updates**: Limit time updates to every 100ms
