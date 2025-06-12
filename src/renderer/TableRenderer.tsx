@@ -692,6 +692,7 @@ export const App: React.FC = () => {
 		currentFile,
 		isPlaying,
 	} = useStoreWithEqualityFn(
+		useStore,
 		(state: AppState) => ({
 			files: state.files,
 			originalFiles: state.originalFiles,
