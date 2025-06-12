@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useMemo, useCallback } from 'react';
 import styled from '@emotion/styled';
 import WaveSurfer from 'wavesurfer.js';
+import { useStoreWithEqualityFn } from 'zustand/traditional';
 import { useStore } from '../store';
 import { shallow } from 'zustand/shallow';
 import { Controls } from './Controls';
@@ -13,7 +14,7 @@ const PlayerContainer = styled.div<{ isVisible: boolean }>`
 	bottom: 0;
 	left: 0;
 	right: 0;
-	height: 80px;
+	height: 90px; // Increased from 80px to accommodate higher resolution waveform
 	background: rgba(20, 20, 30, 0.9);
 	backdrop-filter: blur(15px);
 	border-top: 1px solid rgba(255, 255, 255, 0.1);
@@ -29,7 +30,7 @@ const PlayerContainer = styled.div<{ isVisible: boolean }>`
 
 const WaveformContainer = styled.div`
 	flex-grow: 1;
-	height: 60px;
+	height: 70px; // Increased from 60px to accommodate the higher resolution waveform
 	cursor: pointer;
 
 	/* Style the waveform container to be more visually prominent */
@@ -54,15 +55,17 @@ export const AudioPlayer: React.FC = () => {
 
 	// Only subscribe to essential state that affects visibility and file loading
 	// Explicitly exclude currentTime to prevent re-renders on time updates
-	const { currentFile, isLoading, isPlaying, isMinimized } = useStore(
-		(state) => ({
-			currentFile: state.audioPlayer.currentFile,
-			isLoading: state.audioPlayer.isLoading,
-			isPlaying: state.audioPlayer.isPlaying,
-			isMinimized: state.audioPlayer.isMinimized,
-		}),
-		shallow
-	);
+	const { currentFile, isLoading, isPlaying, isMinimized } =
+		useStoreWithEqualityFn(
+			useStore,
+			(state) => ({
+				currentFile: state.audioPlayer.currentFile,
+				isLoading: state.audioPlayer.isLoading,
+				isPlaying: state.audioPlayer.isPlaying,
+				isMinimized: state.audioPlayer.isMinimized,
+			}),
+			shallow
+		);
 
 	const waveformRef = useRef<HTMLDivElement>(null);
 	const wavesurferRef = useRef<WaveSurfer | null>(null);
@@ -131,11 +134,11 @@ export const AudioPlayer: React.FC = () => {
 			waveColor: '#4a5568',
 			progressColor: '#007aff',
 			cursorColor: '#007aff',
-			height: 50,
+			height: 60, // Increased from 50 to 60 for better visual detail
 			normalize: true,
-			barWidth: 2,
-			barGap: 1,
-			barRadius: 2,
+			barWidth: 1, // Reduced from 2 to 1 for more detail
+			barGap: 0.5, // Reduced from 1 to 0.5 for tighter spacing
+			barRadius: 1, // Reduced from 2 to 1 for sharper bars
 			// Enable interaction for click-to-seek
 			interact: true,
 		});
