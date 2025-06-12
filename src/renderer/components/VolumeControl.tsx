@@ -1,5 +1,6 @@
 import React from 'react';
 import styled from '@emotion/styled';
+import { useStoreWithEqualityFn } from 'zustand/traditional';
 import { useStore } from '../store';
 import { shallow } from 'zustand/shallow';
 
@@ -11,17 +12,49 @@ const VolumeContainer = styled.div`
 
 const VolumeSlider = styled.input`
 	width: 80px;
+	height: 4px;
+	background: rgba(255, 255, 255, 0.2);
+	border-radius: 2px;
+	outline: none;
+	cursor: pointer;
+
+	&::-webkit-slider-thumb {
+		appearance: none;
+		width: 12px;
+		height: 12px;
+		background: #007aff;
+		border-radius: 50%;
+		cursor: pointer;
+	}
+
+	&::-moz-range-thumb {
+		width: 12px;
+		height: 12px;
+		background: #007aff;
+		border-radius: 50%;
+		cursor: pointer;
+		border: none;
+	}
 `;
 
 export const VolumeControl: React.FC = () => {
 	console.log('[VolumeControl] Rendering...');
-	const { volume } = useStore(
+	const { volume } = useStoreWithEqualityFn(
+		useStore,
 		(state) => ({
 			volume: state.audioPlayer.volume,
 		}),
 		shallow
 	);
 	const { setVolume } = useStore.getState();
+
+	const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+		const newVolume = parseFloat(e.target.value);
+		console.log('[VolumeControl] Volume changed to:', newVolume);
+		setVolume(newVolume);
+	};
+
+	console.log('[VolumeControl] Current volume:', volume);
 
 	return (
 		<VolumeContainer>
@@ -32,7 +65,7 @@ export const VolumeControl: React.FC = () => {
 				max='1'
 				step='0.05'
 				value={volume}
-				onChange={(e) => setVolume(parseFloat(e.target.value))}
+				onChange={handleVolumeChange}
 			/>
 		</VolumeContainer>
 	);

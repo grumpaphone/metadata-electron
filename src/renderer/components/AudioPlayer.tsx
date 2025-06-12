@@ -55,7 +55,7 @@ export const AudioPlayer: React.FC = () => {
 
 	// Only subscribe to essential state that affects visibility and file loading
 	// Explicitly exclude currentTime to prevent re-renders on time updates
-	const { currentFile, isLoading, isPlaying, isMinimized } =
+	const { currentFile, isLoading, isPlaying, isMinimized, volume } =
 		useStoreWithEqualityFn(
 			useStore,
 			(state) => ({
@@ -63,6 +63,7 @@ export const AudioPlayer: React.FC = () => {
 				isLoading: state.audioPlayer.isLoading,
 				isPlaying: state.audioPlayer.isPlaying,
 				isMinimized: state.audioPlayer.isMinimized,
+				volume: state.audioPlayer.volume,
 			}),
 			shallow
 		);
@@ -146,6 +147,11 @@ export const AudioPlayer: React.FC = () => {
 
 		// Expose WaveSurfer instance globally for cross-component access
 		(window as any).wavesurferInstance = ws;
+
+		// Set initial volume
+		const initialVolume = useStore.getState().audioPlayer.volume;
+		ws.setVolume(initialVolume);
+		console.log('[PLAYER-EFFECT] Set initial volume to:', initialVolume);
 
 		console.log('[PLAYER-EFFECT] WaveSurfer instance created:', !!ws);
 
@@ -302,6 +308,15 @@ export const AudioPlayer: React.FC = () => {
 			}
 		}
 	}, [isPlaying]);
+
+	// Handle volume changes
+	useEffect(() => {
+		const ws = wavesurferRef.current;
+		if (ws) {
+			console.log('[PLAYER-EFFECT] Setting volume to:', volume);
+			ws.setVolume(volume);
+		}
+	}, [volume]);
 
 	// Memoize visibility calculation
 	const isVisible = useMemo(() => {
