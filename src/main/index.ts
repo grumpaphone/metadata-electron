@@ -31,18 +31,29 @@ const createWindow = () => {
 		fs.existsSync(MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY)
 	);
 
+	// Additional debugging
+	try {
+		const stats = fs.statSync(MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY);
+		console.log('[MAIN] Preload file size:', stats.size, 'bytes');
+	} catch (error) {
+		console.error('[MAIN] Error checking preload file:', error);
+	}
+
 	mainWindow = new BrowserWindow({
 		height: 800,
 		width: 1200,
+		minHeight: 600,
+		minWidth: 1000,
 		webPreferences: {
 			preload: MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY,
 			nodeIntegration: false,
 			contextIsolation: true,
-			webSecurity: true,
+			webSecurity: true, // Re-enabled since IPC is working
 		},
 		transparent: true,
 		frame: false,
 		titleBarStyle: 'hidden',
+		trafficLightPosition: { x: 20, y: 22 }, // Move buttons down to center in 44px bar
 		// Enable file drag and drop
 		acceptFirstMouse: true,
 	});
@@ -65,6 +76,15 @@ const createWindow = () => {
 	// Listen for when the renderer is ready
 	mainWindow.webContents.once('did-finish-load', () => {
 		console.log('[MAIN] Renderer finished loading');
+		// Check if preload worked by evaluating window.electronAPI
+		mainWindow.webContents
+			.executeJavaScript('!!window.electronAPI')
+			.then((hasAPI) => {
+				console.log('[MAIN] electronAPI available in renderer:', hasAPI);
+			})
+			.catch((err) => {
+				console.error('[MAIN] Failed to check electronAPI:', err);
+			});
 	});
 
 	// Listen for preload script errors

@@ -192,6 +192,8 @@ export class MetadataService {
 		metadata.iXML.BWFXML.SCENE = metadata.scene;
 		metadata.iXML.BWFXML.TAKE = metadata.take;
 		metadata.iXML.BWFXML.SLATE = metadata.slate;
+		metadata.iXML.BWFXML.CATEGORY = metadata.category;
+		metadata.iXML.BWFXML.SUBCATEGORY = metadata.subcategory;
 		metadata.iXML.BWFXML.NOTE = metadata.ixmlNote;
 		metadata.iXML.BWFXML.CIRCLED = metadata.ixmlCircled === 'true';
 

@@ -259,6 +259,7 @@ const DragMessage = styled.div`
 const TooltipWrapper = styled.div`
 	position: relative;
 	display: inline-block;
+	z-index: 1000001; /* Ensure wrapper is above everything */
 `;
 
 const Tooltip = styled.div<{ visible: boolean }>`
@@ -277,9 +278,10 @@ const Tooltip = styled.div<{ visible: boolean }>`
 	opacity: ${(props) => (props.visible ? 1 : 0)};
 	visibility: ${(props) => (props.visible ? 'visible' : 'hidden')};
 	transition: opacity 0.2s ease, visibility 0.2s ease;
-	z-index: 10000;
+	z-index: 1000000;
 	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 	backdrop-filter: blur(4px);
+	pointer-events: none;
 
 	&::before {
 		content: '';
@@ -440,6 +442,8 @@ const TableHeader = styled.th`
 const TableRow = styled.tr<{ selected?: boolean }>`
 	background: ${(props) => (props.selected ? '#007bff40' : 'transparent')};
 	border-bottom: 1px solid #444;
+	user-select: none;
+	cursor: pointer;
 	&:hover {
 		background: #ffffff1a;
 	}
@@ -878,7 +882,8 @@ export const App: React.FC = () => {
 			const isTyping =
 				activeElement?.tagName === 'INPUT' ||
 				activeElement?.tagName === 'TEXTAREA' ||
-				(activeElement as HTMLElement)?.contentEditable === 'true';
+				(activeElement instanceof HTMLElement &&
+					activeElement.contentEditable === 'true');
 
 			if (isTyping) return;
 
@@ -1348,13 +1353,21 @@ export const App: React.FC = () => {
 									<TableRow
 										key={file.filePath}
 										selected={selectedRows.includes(originalIndex)}
-										onClick={(e) =>
+										onClick={(e) => {
+											// Prevent default text selection behavior
+											e.preventDefault();
+
+											// Clear any existing text selection when shift-clicking
+											if (e.shiftKey && window.getSelection) {
+												window.getSelection()?.removeAllRanges();
+											}
+
 											storeActions.selectFile(
 												originalIndex,
 												e.ctrlKey || e.metaKey,
 												e.shiftKey
-											)
-										}>
+											);
+										}}>
 										<TableCell
 											style={{ textAlign: 'center', cursor: 'pointer' }}
 											onClick={(e) => handlePlayAudio(file, e)}

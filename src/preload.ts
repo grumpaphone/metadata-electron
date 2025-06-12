@@ -11,6 +11,11 @@ console.log('🔧 PRELOAD: Node version:', process.versions.node);
 console.log('🔧 PRELOAD: Chrome version:', process.versions.chrome);
 console.log('🔧 PRELOAD: Context isolation enabled:', process.contextIsolated);
 
+// Simple test to see if the script even loads
+console.log('🔧 PRELOAD: About to check ipcRenderer...');
+console.log('🔧 PRELOAD: ipcRenderer available:', !!ipcRenderer);
+console.log('🔧 PRELOAD: contextBridge available:', !!contextBridge);
+
 export interface LoadingProgress {
 	fileName: string;
 	percentage: number;
@@ -87,19 +92,20 @@ const electronAPI: IElectronAPI = {
 };
 
 // Expose the API to the renderer process under the `electronAPI` key.
-try {
-	console.log('🔧 PRELOAD: About to expose electronAPI...');
-	console.log('🔧 PRELOAD: Context bridge available:', typeof contextBridge);
-	console.log('🔧 PRELOAD: electronAPI object keys:', Object.keys(electronAPI));
+console.log('🔧 PRELOAD: About to expose electronAPI...');
+console.log('🔧 PRELOAD: electronAPI object keys:', Object.keys(electronAPI));
 
-	contextBridge.exposeInMainWorld('electronAPI', electronAPI);
+// First, try the standard way
+contextBridge.exposeInMainWorld('electronAPI', electronAPI);
+console.log('🔧 PRELOAD: API exposed via contextBridge');
 
-	console.log('🔧 PRELOAD: API exposed successfully!');
-	console.log('🔧 PRELOAD: Methods exposed:', Object.keys(electronAPI));
-} catch (error) {
-	console.error('🔧 PRELOAD: Failed to expose electronAPI:', error);
-	console.error('🔧 PRELOAD: Error stack:', error.stack);
-}
+// Add a simple test function
+contextBridge.exposeInMainWorld('electronTest', {
+	ping: () => 'pong',
+	log: (message: string) => console.log('[PRELOAD-TEST]', message),
+});
+
+console.log('🔧 PRELOAD: Test API also exposed');
 
 /**
  * TypeScript declaration for the window object in the renderer process.
