@@ -892,7 +892,13 @@ export const App: React.FC = () => {
 
 				case 'Enter': // Enter - stop audio
 					event.preventDefault();
-					storeActions.stopAudio();
+					// Try to use the global stopAudioFunction first (which controls WaveSurfer directly)
+					const globalStopFunction = (window as any).stopAudioFunction;
+					if (globalStopFunction) {
+						globalStopFunction();
+					} else {
+						storeActions.stopAudio();
+					}
 					console.log('[KEYBOARD] Enter pressed - stop audio');
 					break;
 

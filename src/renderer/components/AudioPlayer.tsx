@@ -148,6 +148,9 @@ export const AudioPlayer: React.FC = () => {
 		// Expose WaveSurfer instance globally for cross-component access
 		(window as any).wavesurferInstance = ws;
 
+		// Expose stopAudio function globally for cross-component access
+		(window as any).stopAudioFunction = stopAudio;
+
 		// Set initial volume
 		const initialVolume = useStore.getState().audioPlayer.volume;
 		ws.setVolume(initialVolume);
@@ -221,8 +224,9 @@ export const AudioPlayer: React.FC = () => {
 			console.log('[PLAYER-EFFECT] Destroying WaveSurfer...');
 			ws.destroy();
 			wavesurferRef.current = null;
-			// Clean up global reference
+			// Clean up global references
 			delete (window as any).wavesurferInstance;
+			delete (window as any).stopAudioFunction;
 		};
 	}, []); // Empty dependency array - initialize only once
 

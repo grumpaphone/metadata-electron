@@ -1,5 +1,6 @@
 import React, { useCallback } from 'react';
 import styled from '@emotion/styled';
+import { useStoreWithEqualityFn } from 'zustand/traditional';
 import { useStore } from '../store';
 import { shallow } from 'zustand/shallow';
 
@@ -32,7 +33,8 @@ const PlayerButton = styled.button`
 
 export const Controls: React.FC = () => {
 	console.log('[Controls] Rendering...');
-	const { isPlaying, isLoading } = useStore(
+	const { isPlaying, isLoading } = useStoreWithEqualityFn(
+		useStore,
 		(state) => ({
 			isPlaying: state.audioPlayer.isPlaying,
 			isLoading: state.audioPlayer.isLoading,
@@ -54,7 +56,15 @@ export const Controls: React.FC = () => {
 
 	const handleStop = useCallback(() => {
 		console.log('[Controls] Stop button clicked');
-		useStore.getState().stopAudio();
+		// Try to use the global stopAudioFunction first (which controls WaveSurfer directly)
+		const globalStopFunction = (window as any).stopAudioFunction;
+		if (globalStopFunction) {
+			console.log('[Controls] Using global stopAudioFunction');
+			globalStopFunction();
+		} else {
+			console.log('[Controls] Fallback to store stopAudio');
+			useStore.getState().stopAudio();
+		}
 	}, []);
 
 	return (
