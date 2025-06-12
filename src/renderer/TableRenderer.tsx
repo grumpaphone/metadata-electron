@@ -135,9 +135,14 @@ const Button = styled.button`
 	font-size: 14px;
 	font-weight: 500;
 	transition: background 0.2s ease;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 44px;
 	box-sizing: border-box;
 	line-height: 1.2;
 	height: 36px;
+
 	&:hover {
 		background: #0056b3;
 	}
@@ -145,6 +150,12 @@ const Button = styled.button`
 		background: #444;
 		color: #888;
 		cursor: not-allowed;
+	}
+
+	/* Special styling for folder button */
+	&.folder-button {
+		font-size: 16px;
+		padding: 8px 12px;
 	}
 `;
 
@@ -253,83 +264,6 @@ const DragMessage = styled.div`
 		font-size: 14px;
 		opacity: 0.8;
 		font-weight: 400;
-	}
-`;
-
-const TooltipWrapper = styled.div`
-	position: relative;
-	display: inline-block;
-	z-index: 1000001; /* Ensure wrapper is above everything */
-`;
-
-const Tooltip = styled.div<{ visible: boolean }>`
-	position: absolute;
-	top: 100%;
-	left: 50%;
-	transform: translateX(-50%);
-	margin-top: 8px;
-	padding: 6px 10px;
-	background: rgba(0, 0, 0, 0.9);
-	color: white;
-	font-size: 12px;
-	font-weight: 500;
-	border-radius: 6px;
-	white-space: nowrap;
-	opacity: ${(props) => (props.visible ? 1 : 0)};
-	visibility: ${(props) => (props.visible ? 'visible' : 'hidden')};
-	transition: opacity 0.2s ease, visibility 0.2s ease;
-	z-index: 1000000;
-	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-	backdrop-filter: blur(4px);
-	pointer-events: none;
-
-	&::before {
-		content: '';
-		position: absolute;
-		bottom: 100%;
-		left: 50%;
-		transform: translateX(-50%);
-		border: 4px solid transparent;
-		border-bottom-color: rgba(0, 0, 0, 0.9);
-	}
-`;
-
-const FolderButton = styled.button`
-	background: #007aff;
-	color: white;
-	border: 1px solid transparent;
-	padding: 8px 15px;
-	border-radius: 6px;
-	cursor: pointer;
-	font-size: 14px;
-	font-weight: 500;
-	transition: background 0.2s ease;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	min-width: 44px; /* Ensure consistent width */
-	box-sizing: border-box;
-	line-height: 1.2;
-	height: 36px;
-
-	&:hover {
-		background: #0056b3;
-	}
-	&:disabled {
-		background: #444;
-		color: #888;
-		cursor: not-allowed;
-	}
-
-	/* Folder icon SVG */
-	&::before {
-		content: '';
-		width: 16px;
-		height: 16px;
-		background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23000000'%3E%3Cpath d='M10 4H4c-1.11 0-2 .89-2 2v12c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2h-8l-2-2z'/%3E%3C/svg%3E");
-		background-size: contain;
-		background-repeat: no-repeat;
-		background-position: center;
 	}
 `;
 
@@ -620,6 +554,46 @@ const DropdownMenu = styled.div<{ top: number; left: number }>`
 	}
 `;
 
+const PortalTooltip = styled.div<{ top: number; left: number }>`
+	position: fixed;
+	top: ${(props) => props.top}px;
+	left: ${(props) => props.left}px;
+	transform: translateX(-50%);
+	padding: 6px 10px;
+	background: rgba(0, 0, 0, 0.9);
+	color: white;
+	font-size: 12px;
+	font-weight: 500;
+	border-radius: 6px;
+	white-space: nowrap;
+	z-index: 1000000; /* Higher than dropdown menu (999999) */
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+	backdrop-filter: blur(4px);
+	pointer-events: none; /* Prevent tooltip from interfering with mouse events */
+	animation: tooltipFadeIn 0.2s ease;
+
+	&::before {
+		content: '';
+		position: absolute;
+		bottom: 100%;
+		left: 50%;
+		transform: translateX(-50%);
+		border: 4px solid transparent;
+		border-bottom-color: rgba(0, 0, 0, 0.9);
+	}
+
+	@keyframes tooltipFadeIn {
+		from {
+			opacity: 0;
+			transform: translateX(-50%) translateY(-5px);
+		}
+		to {
+			opacity: 1;
+			transform: translateX(-50%) translateY(0);
+		}
+	}
+`;
+
 // --- CHILD COMPONENTS ---
 
 interface EditableCellProps {
@@ -643,18 +617,50 @@ const TooltipButton: React.FC<TooltipButtonProps> = ({
 	className,
 }) => {
 	const [isVisible, setIsVisible] = useState(false);
+	const [position, setPosition] = useState({ top: 0, left: 0 });
+	const buttonRef = useRef<HTMLButtonElement>(null);
+
+	const updatePosition = useCallback(() => {
+		if (buttonRef.current) {
+			const rect = buttonRef.current.getBoundingClientRect();
+			setPosition({
+				top: rect.bottom + 8, // 8px below the button
+				left: rect.left + rect.width / 2, // Center horizontally
+			});
+		}
+	}, []);
+
+	const handleMouseEnter = useCallback(() => {
+		updatePosition();
+		setIsVisible(true);
+	}, [updatePosition]);
+
+	const handleMouseLeave = useCallback(() => {
+		setIsVisible(false);
+	}, []);
 
 	return (
-		<TooltipWrapper
-			onMouseEnter={() => setIsVisible(true)}
-			onMouseLeave={() => setIsVisible(false)}>
-			<Button onClick={onClick} disabled={disabled} className={className}>
+		<>
+			<Button
+				ref={buttonRef}
+				onClick={onClick}
+				disabled={disabled}
+				className={className}
+				onMouseEnter={handleMouseEnter}
+				onMouseLeave={handleMouseLeave}>
 				{children}
 			</Button>
-			<Tooltip visible={isVisible}>{tooltip}</Tooltip>
-		</TooltipWrapper>
+			{isVisible &&
+				createPortal(
+					<PortalTooltip top={position.top} left={position.left}>
+						{tooltip}
+					</PortalTooltip>,
+					document.body
+				)}
+		</>
 	);
 };
+
 const EditableCell: React.FC<EditableCellProps> = ({ value, onChange }) => (
 	<EditableCellInput type='text' value={value} onChange={onChange} />
 );
@@ -675,38 +681,28 @@ export const App: React.FC = () => {
 
 	// --- State Selectors ---
 	const {
-		filteredFiles,
-		isLoading,
-		error,
-		loadingProgress,
-		searchText,
-		searchField,
-		selectedRows,
 		files,
 		originalFiles,
+		selectedRows,
+		searchText,
+		searchField,
+		isLoading,
+		error,
 		isDirty,
+		currentFile,
+		isPlaying,
 	} = useStoreWithEqualityFn(
-		useStore,
 		(state: AppState) => ({
-			filteredFiles: state.filteredFiles,
-			isLoading: state.isLoading,
-			error: state.error,
-			loadingProgress: state.loadingProgress,
-			searchText: state.searchText,
-			searchField: state.searchField,
-			selectedRows: state.selectedRows,
 			files: state.files,
 			originalFiles: state.originalFiles,
+			selectedRows: state.selectedRows,
+			searchText: state.searchText,
+			searchField: state.searchField,
+			isLoading: state.isLoading,
+			error: state.error,
 			isDirty: state.isDirty,
-		}),
-		shallow
-	);
-
-	const { isPlaying, currentFile } = useStoreWithEqualityFn(
-		useStore,
-		(state: AppState) => ({
-			isPlaying: state.audioPlayer.isPlaying,
 			currentFile: state.audioPlayer.currentFile,
+			isPlaying: state.audioPlayer.isPlaying,
 		}),
 		shallow
 	);
@@ -715,17 +711,15 @@ export const App: React.FC = () => {
 	const storeActions = useStore.getState();
 
 	// --- Component State ---
+	const [isFilterOpen, setFilterOpen] = useState(false);
+	const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
+	const [dragCounter, setDragCounter] = useState(0);
 	const [isMappingModalOpen, setIsMappingModalOpen] = useState(false);
 	const [isMirrorModalOpen, setIsMirrorModalOpen] = useState(false);
-	const [dragCounter, setDragCounter] = useState(0);
-	const isDragging = dragCounter > 0;
-	const [folderTooltipVisible, setFolderTooltipVisible] = useState(false);
 	const [sortConfig, setSortConfig] = useState<{
 		key: keyof Wavedata;
 		direction: 'asc' | 'desc';
 	} | null>({ key: 'filename', direction: 'asc' });
-	const [isFilterOpen, setFilterOpen] = useState(false);
-	const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
 	const filterContainerRef = useRef<HTMLDivElement>(null);
 
 	// Check if electronAPI is available
@@ -758,9 +752,9 @@ export const App: React.FC = () => {
 
 	// --- Memos & Effects ---
 	const sortedFiles = useMemo(() => {
-		if (!sortConfig) return filteredFiles;
+		if (!sortConfig) return files;
 
-		return [...filteredFiles].sort((a, b) => {
+		return [...files].sort((a, b) => {
 			const aValue = a[sortConfig.key as keyof Wavedata] as any;
 			const bValue = b[sortConfig.key as keyof Wavedata] as any;
 
@@ -772,7 +766,7 @@ export const App: React.FC = () => {
 			}
 			return 0;
 		});
-	}, [filteredFiles, sortConfig]);
+	}, [files, sortConfig]);
 
 	useEffect(() => {
 		// Only set up listeners when API is ready and available
@@ -894,7 +888,7 @@ export const App: React.FC = () => {
 					// If there's a selected row, play that file
 					if (selectedRows.length > 0) {
 						const selectedIndex = selectedRows[0]; // Play the first selected row
-						const selectedFile = filteredFiles[selectedIndex];
+						const selectedFile = files[selectedIndex];
 						if (selectedFile) {
 							console.log(
 								'[KEYBOARD] Space pressed - playing selected row:',
@@ -917,15 +911,17 @@ export const App: React.FC = () => {
 					break;
 
 				case 'Enter': // Enter - stop audio
-					event.preventDefault();
-					// Try to use the global stopAudioFunction first (which controls WaveSurfer directly)
-					const globalStopFunction = (window as any).stopAudioFunction;
-					if (globalStopFunction) {
-						globalStopFunction();
-					} else {
-						storeActions.stopAudio();
+					{
+						event.preventDefault();
+						// Try to use the global stopAudioFunction first (which controls WaveSurfer directly)
+						const globalStopFunction = (window as any).stopAudioFunction;
+						if (globalStopFunction) {
+							globalStopFunction();
+						} else {
+							storeActions.stopAudio();
+						}
+						console.log('[KEYBOARD] Enter pressed - stop audio');
 					}
-					console.log('[KEYBOARD] Enter pressed - stop audio');
 					break;
 
 				case 'm':
@@ -1082,7 +1078,7 @@ export const App: React.FC = () => {
 	const handleFilenameMapping = (mapping: Record<number, string>) => {
 		const updates = selectedRows
 			.map((rowIndex) => {
-				const file = filteredFiles[rowIndex];
+				const file = files[rowIndex];
 				const filename = basename(file.filePath);
 				const match = filename.match(/(\d+)/);
 				if (match) {
@@ -1137,6 +1133,9 @@ export const App: React.FC = () => {
 		return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
 	};
 
+	// Derive isDragging from dragCounter
+	const isDraggingActive = dragCounter > 0;
+
 	// Don't render until API is ready
 	if (!apiReady || !api) {
 		return (
@@ -1176,7 +1175,7 @@ export const App: React.FC = () => {
 				onApply={handleFilenameMapping}
 				sampleFilename={
 					selectedRows.length > 0
-						? basename(filteredFiles[selectedRows[0]]?.filePath || '')
+						? basename(files[selectedRows[0]]?.filePath || '')
 						: files.length > 0
 						? basename(files[0].filePath)
 						: 'example_file_name.wav'
@@ -1187,13 +1186,13 @@ export const App: React.FC = () => {
 				isOpen={isMirrorModalOpen}
 				onClose={() => setIsMirrorModalOpen(false)}
 				selectedFiles={selectedRows
-					.map((i) => filteredFiles[i]?.filePath)
+					.map((i) => files[i]?.filePath)
 					.filter(Boolean)}
 				allFiles={files}
 				totalFiles={files.length}
 			/>
 
-			{isDragging && (
+			{isDraggingActive && (
 				<DragOverlay>
 					<DragMessage>
 						<span className='icon'>📂</span>
@@ -1205,14 +1204,12 @@ export const App: React.FC = () => {
 
 			<UnifiedTopBar>
 				<LeftSection>
-					<TooltipWrapper
-						onMouseEnter={() => setFolderTooltipVisible(true)}
-						onMouseLeave={() => setFolderTooltipVisible(false)}>
-						<FolderButton onClick={handleOpenDirectory}></FolderButton>
-						<Tooltip visible={folderTooltipVisible}>
-							Open directory to load WAV files
-						</Tooltip>
-					</TooltipWrapper>
+					<TooltipButton
+						onClick={handleOpenDirectory}
+						tooltip='Open directory to load WAV files'
+						className='folder-button'>
+						📁
+					</TooltipButton>
 					<TooltipButton
 						onClick={() => setIsMappingModalOpen(true)}
 						disabled={files.length === 0}
@@ -1342,7 +1339,7 @@ export const App: React.FC = () => {
 						</thead>
 						<tbody>
 							{sortedFiles.map((file) => {
-								const originalIndex = filteredFiles.findIndex(
+								const originalIndex = files.findIndex(
 									(f) => f.filePath === file.filePath
 								);
 								const originalFile = originalFiles.find(
