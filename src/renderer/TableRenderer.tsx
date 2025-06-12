@@ -878,16 +878,37 @@ export const App: React.FC = () => {
 			const isTyping =
 				activeElement?.tagName === 'INPUT' ||
 				activeElement?.tagName === 'TEXTAREA' ||
-				activeElement?.contentEditable === 'true';
+				(activeElement as HTMLElement)?.contentEditable === 'true';
 
 			if (isTyping) return;
 
 			// Handle keyboard shortcuts
 			switch (event.key) {
-				case ' ': // Space - toggle play/pause
+				case ' ': // Space - toggle play/pause or play selected row
 					event.preventDefault();
-					storeActions.togglePlayPause();
-					console.log('[KEYBOARD] Space pressed - toggle play/pause');
+					// If there's a selected row, play that file
+					if (selectedRows.length > 0) {
+						const selectedIndex = selectedRows[0]; // Play the first selected row
+						const selectedFile = filteredFiles[selectedIndex];
+						if (selectedFile) {
+							console.log(
+								'[KEYBOARD] Space pressed - playing selected row:',
+								selectedFile.filename
+							);
+							if (currentFile?.filePath === selectedFile.filePath) {
+								storeActions.togglePlayPause();
+							} else {
+								storeActions.loadAudioFile(selectedFile);
+							}
+							storeActions.setPlayerMinimized(false);
+						}
+					} else {
+						// No row selected, use default toggle behavior
+						console.log(
+							'[KEYBOARD] Space pressed - toggle play/pause (no selection)'
+						);
+						storeActions.togglePlayPause();
+					}
 					break;
 
 				case 'Enter': // Enter - stop audio
