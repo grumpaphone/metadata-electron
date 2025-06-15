@@ -15,9 +15,9 @@ const PlayerContainer = styled.div<{ isVisible: boolean }>`
 	left: 0;
 	right: 0;
 	height: 90px; // Increased from 80px to accommodate higher resolution waveform
-	background: rgba(20, 20, 30, 0.9);
+	background: var(--player-bg);
 	backdrop-filter: blur(15px);
-	border-top: 1px solid rgba(255, 255, 255, 0.1);
+	border-top: 1px solid var(--border-primary);
 	display: flex;
 	align-items: center;
 	padding: 0 20px;
@@ -25,7 +25,7 @@ const PlayerContainer = styled.div<{ isVisible: boolean }>`
 	transform: translateY(${(props) => (props.isVisible ? '0' : '100%')});
 	transition: transform 0.3s ease-in-out;
 	z-index: 100;
-	color: white;
+	color: var(--player-text);
 `;
 
 const WaveformContainer = styled.div`
@@ -34,7 +34,7 @@ const WaveformContainer = styled.div`
 	cursor: pointer;
 
 	/* Style the waveform container to be more visually prominent */
-	background: rgba(0, 0, 0, 0.3);
+	background: var(--waveform-bg);
 	border-radius: 8px;
 	padding: 5px;
 `;
@@ -46,7 +46,7 @@ const TimeDisplay = styled.div`
 	min-width: 80px;
 	font-family: 'Monaco', 'Menlo', monospace;
 	font-size: 12px;
-	color: #ccc;
+	color: var(--player-text-muted);
 `;
 
 // --- MAIN COMPONENT ---
@@ -111,9 +111,14 @@ export const AudioPlayer: React.FC = () => {
 			};
 
 			const duration = useStore.getState().audioPlayer.duration;
+			const dimColor = getComputedStyle(document.documentElement)
+				.getPropertyValue('--player-text-dim')
+				.trim();
 			timeDisplayRef.current.innerHTML = `
 				<div>${formatTime(currentTime)}</div>
-				<div style="color: #666; font-size: 10px;">${formatTime(duration)}</div>
+				<div style="color: ${dimColor || '#666'}; font-size: 10px;">${formatTime(
+				duration
+			)}</div>
 			`;
 		}
 	}, []);
@@ -130,11 +135,22 @@ export const AudioPlayer: React.FC = () => {
 		}
 
 		console.log('[PLAYER-EFFECT] Creating WaveSurfer instance...');
+
+		// Get CSS variable values for WaveSurfer colors
+		const computedStyle = getComputedStyle(document.documentElement);
+		const waveColor = computedStyle.getPropertyValue('--waveform-wave').trim();
+		const progressColor = computedStyle
+			.getPropertyValue('--waveform-progress')
+			.trim();
+		const cursorColor = computedStyle
+			.getPropertyValue('--waveform-cursor')
+			.trim();
+
 		const ws = WaveSurfer.create({
 			container: waveformRef.current,
-			waveColor: '#4a5568',
-			progressColor: '#007aff',
-			cursorColor: '#007aff',
+			waveColor: waveColor || '#4a5568',
+			progressColor: progressColor || '#007aff',
+			cursorColor: cursorColor || '#007aff',
 			height: 60, // Increased from 50 to 60 for better visual detail
 			normalize: true,
 			barWidth: 1, // Reduced from 2 to 1 for more detail

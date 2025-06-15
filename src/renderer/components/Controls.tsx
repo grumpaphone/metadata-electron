@@ -11,9 +11,9 @@ const ControlsContainer = styled.div`
 `;
 
 const PlayerButton = styled.button`
-	background: rgba(255, 255, 255, 0.1);
-	border: 1px solid rgba(255, 255, 255, 0.2);
-	color: white;
+	background: var(--border-secondary);
+	border: 1px solid var(--border-primary);
+	color: var(--player-text);
 	border-radius: 50%;
 	width: 40px;
 	height: 40px;
@@ -22,8 +22,9 @@ const PlayerButton = styled.button`
 	align-items: center;
 	cursor: pointer;
 	font-size: 1.2em;
+	transition: background 0.2s ease;
 	&:hover {
-		background: rgba(255, 255, 255, 0.2);
+		background: var(--table-row-hover);
 	}
 	&:disabled {
 		opacity: 0.5;

@@ -17,6 +17,7 @@ import { ErrorDialog } from './components/ErrorDialog';
 import { FilenameMappingModal } from './components/FilenameMappingModal';
 import { AudioPlayer } from './components/AudioPlayer';
 import { MirrorModal } from './components/MirrorModal';
+import { SettingsModal } from './components/SettingsModal';
 
 // --- UTILITIES ---
 const basename = (path: string) => path.split(/[\\/]/).pop() || '';
@@ -54,15 +55,12 @@ const AppContainer = styled.div`
 	display: flex;
 	flex-direction: column;
 	height: 100vh;
-	background: linear-gradient(
-		135deg,
-		rgba(30, 30, 40, 0.95) 0%,
-		rgba(20, 20, 30, 0.98) 100%
-	);
+	background: var(--bg-primary);
 	backdrop-filter: blur(20px);
-	border: 1px solid rgba(255, 255, 255, 0.1);
-	color: #e0e0e0;
+	border: 1px solid var(--border-primary);
+	color: var(--text-primary);
 	font-family: 'Inter', sans-serif;
+	font-size: var(--font-size-base);
 
 	position: relative;
 `;
@@ -72,9 +70,9 @@ const UnifiedTopBar = styled.div`
 	align-items: center;
 	padding: 8px 12px;
 	padding-left: 85px; /* Space for custom positioned traffic lights */
-	background: rgba(40, 40, 50, 0.8);
+	background: var(--bg-secondary);
 	backdrop-filter: blur(10px);
-	border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+	border-bottom: 1px solid var(--border-primary);
 	gap: 12px;
 	height: 44px; /* Fixed height for proper traffic light centering */
 	-webkit-app-region: drag;
@@ -126,7 +124,7 @@ const GlobalStyles = () => (
 );
 
 const Button = styled.button`
-	background: #007aff;
+	background: var(--accent-primary);
 	color: white;
 	border: 1px solid transparent;
 	padding: 8px 15px;
@@ -144,11 +142,11 @@ const Button = styled.button`
 	height: 36px;
 
 	&:hover {
-		background: #0056b3;
+		background: var(--accent-hover);
 	}
 	&:disabled {
-		background: #444;
-		color: #888;
+		background: var(--bg-tertiary);
+		color: var(--text-muted);
 		cursor: not-allowed;
 	}
 
@@ -196,7 +194,7 @@ const MiddleSection = styled.div`
 	margin-right: auto;
 	font-size: 13px;
 	font-weight: 500;
-	color: rgba(255, 255, 255, 0.7);
+	color: var(--text-muted);
 	letter-spacing: 0.5px;
 `;
 
@@ -268,9 +266,9 @@ const DragMessage = styled.div`
 `;
 
 const Input = styled.input`
-	background: rgba(0, 0, 0, 0.2);
-	border: 1px solid rgba(255, 255, 255, 0.1);
-	color: #eee;
+	background: var(--input-bg);
+	border: 1px solid var(--border-primary);
+	color: var(--text-primary);
 	padding: 8px 15px;
 	border-radius: 6px;
 	font-size: 14px;
@@ -281,7 +279,7 @@ const Input = styled.input`
 
 	&:focus {
 		outline: none;
-		border-color: #007aff;
+		border-color: var(--accent-primary);
 	}
 `;
 
@@ -291,15 +289,15 @@ const DropdownItem = styled.div<{ isSelected?: boolean }>`
 	font-size: 13px;
 	font-weight: 500;
 	color: ${(props) =>
-		props.isSelected ? '#007aff' : 'rgba(255, 255, 255, 0.9)'};
+		props.isSelected ? 'var(--accent-primary)' : 'var(--dropdown-item-text)'};
 	transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-	border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+	border-bottom: 1px solid var(--border-secondary);
 	position: relative;
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
 	background: ${(props) =>
-		props.isSelected ? 'rgba(0, 122, 255, 0.08)' : 'transparent'};
+		props.isSelected ? 'var(--table-row-selected)' : 'transparent'};
 	user-select: none;
 
 	&:first-child {
@@ -314,18 +312,14 @@ const DropdownItem = styled.div<{ isSelected?: boolean }>`
 	}
 
 	&:hover {
-		background: linear-gradient(
-			90deg,
-			rgba(0, 122, 255, 0.12) 0%,
-			rgba(0, 122, 255, 0.08) 100%
-		);
-		color: #007aff;
+		background: var(--dropdown-item-hover);
+		color: var(--accent-primary);
 		transform: translateX(3px);
-		box-shadow: inset 3px 0 0 rgba(0, 122, 255, 0.5);
+		box-shadow: inset 3px 0 0 var(--accent-primary);
 	}
 
 	&:active {
-		background: rgba(0, 122, 255, 0.2);
+		background: var(--table-row-selected);
 		transform: translateX(1px);
 	}
 
@@ -335,7 +329,7 @@ const DropdownItem = styled.div<{ isSelected?: boolean }>`
 		&::after {
 			content: '✓';
 			font-size: 12px;
-			color: #007aff;
+			color: var(--accent-primary);
 			font-weight: 600;
 		}
 	`}
@@ -359,34 +353,37 @@ const Table = styled.table`
 `;
 
 const TableHeader = styled.th`
-	background: #333;
+	background: var(--bg-tertiary);
 	padding: 6px 8px;
 	text-align: left;
 	cursor: pointer;
 	position: sticky;
 	top: 0;
 	user-select: none;
-	font-size: ${METADATA_FONT_SIZE};
+	font-size: var(--font-size-base);
 	font-weight: 500;
 	height: 28px;
 	white-space: nowrap;
 	overflow: hidden;
+	color: var(--text-secondary);
 `;
 
 const TableRow = styled.tr<{ selected?: boolean }>`
-	background: ${(props) => (props.selected ? '#007bff40' : 'transparent')};
-	border-bottom: 1px solid #444;
+	background: ${(props) =>
+		props.selected ? 'var(--table-row-selected)' : 'transparent'};
+	border-bottom: 1px solid var(--border-secondary);
 	user-select: none;
 	cursor: pointer;
 	&:hover {
-		background: #ffffff1a;
+		background: var(--table-row-hover);
 	}
 `;
 
 const TableCell = styled.td`
 	padding: 8px;
-	border-right: 1px solid #444;
-	font-size: ${METADATA_FONT_SIZE};
+	border-right: 1px solid var(--border-secondary);
+	font-size: var(--font-size-base);
+	color: var(--text-primary);
 	&:last-child {
 		border-right: none;
 	}
@@ -398,7 +395,7 @@ const EmptyState = styled.div`
 	justify-content: center;
 	align-items: center;
 	height: 100%;
-	color: #888;
+	color: var(--text-muted);
 `;
 
 const EditableCellInput = styled(Input)`
@@ -412,8 +409,8 @@ const EditableCellInput = styled(Input)`
 	font-size: ${METADATA_FONT_SIZE};
 
 	&:focus {
-		background: #111;
-		border-color: #007bff;
+		background: var(--input-focus-bg);
+		border-color: var(--accent-primary);
 	}
 `;
 
@@ -445,20 +442,21 @@ const SearchInput = styled(Input)`
 	width: 100%;
 	padding-right: 40px;
 	box-sizing: border-box;
-	background: rgba(20, 20, 30, 0.8);
-	border: 1px solid rgba(255, 255, 255, 0.12);
+	background: var(--input-bg);
+	border: 1px solid var(--border-primary);
 	backdrop-filter: blur(10px);
 	transition: all 0.2s ease;
+	color: var(--text-primary);
 
 	&:focus {
 		outline: none;
-		border-color: #007aff;
-		background: rgba(20, 20, 30, 0.95);
+		border-color: var(--accent-primary);
+		background: var(--input-bg);
 		box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
 	}
 
 	&:hover {
-		border-color: rgba(255, 255, 255, 0.2);
+		border-color: var(--border-primary);
 	}
 `;
 
@@ -476,11 +474,11 @@ const DropdownArrow = styled.div<{ isOpen: boolean }>`
 	border-radius: 6px;
 	transition: all 0.2s ease;
 	background: ${(props) =>
-		props.isOpen ? 'rgba(0, 122, 255, 0.15)' : 'transparent'};
+		props.isOpen ? 'var(--table-row-selected)' : 'transparent'};
 	user-select: none;
 
 	&:hover {
-		background: rgba(255, 255, 255, 0.1);
+		background: var(--table-row-hover);
 		transform: translateY(-50%) scale(1.1);
 	}
 
@@ -491,7 +489,8 @@ const DropdownArrow = styled.div<{ isOpen: boolean }>`
 		border-left: 5px solid transparent;
 		border-right: 5px solid transparent;
 		border-top: 5px solid
-			${(props) => (props.isOpen ? '#007aff' : 'rgba(255, 255, 255, 0.7)')};
+			${(props) =>
+				props.isOpen ? 'var(--accent-primary)' : 'var(--text-muted)'};
 		transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 		transform: ${(props) => (props.isOpen ? 'rotate(180deg)' : 'rotate(0deg)')};
 		filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
@@ -499,7 +498,7 @@ const DropdownArrow = styled.div<{ isOpen: boolean }>`
 
 	&:hover::after {
 		border-top-color: ${(props) =>
-			props.isOpen ? '#007aff' : 'rgba(255, 255, 255, 0.95)'};
+			props.isOpen ? 'var(--accent-primary)' : 'var(--text-secondary)'};
 	}
 `;
 
@@ -507,16 +506,12 @@ const DropdownMenu = styled.div<{ top: number; left: number }>`
 	position: fixed;
 	top: ${(props) => props.top}px;
 	left: ${(props) => props.left}px;
-	background: linear-gradient(
-		135deg,
-		rgba(30, 30, 40, 0.98) 0%,
-		rgba(20, 20, 30, 0.98) 100%
-	);
+	background: var(--dropdown-bg);
 	backdrop-filter: blur(25px);
-	border: 1px solid rgba(255, 255, 255, 0.15);
+	border: 1px solid var(--dropdown-border);
 	border-radius: 12px;
-	box-shadow: 0 25px 50px rgba(0, 0, 0, 0.6), 0 12px 24px rgba(0, 0, 0, 0.4),
-		inset 0 1px 0 rgba(255, 255, 255, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.1);
+	box-shadow: 0 25px 50px rgba(0, 0, 0, 0.3), 0 12px 24px rgba(0, 0, 0, 0.2),
+		inset 0 1px 0 var(--border-primary), 0 0 0 1px var(--border-secondary);
 	z-index: 999999;
 	min-width: 160px;
 	overflow: hidden;
@@ -530,12 +525,8 @@ const DropdownMenu = styled.div<{ top: number; left: number }>`
 		right: 20px;
 		width: 12px;
 		height: 12px;
-		background: linear-gradient(
-			135deg,
-			rgba(30, 30, 40, 0.98) 0%,
-			rgba(20, 20, 30, 0.98) 100%
-		);
-		border: 1px solid rgba(255, 255, 255, 0.15);
+		background: var(--dropdown-bg);
+		border: 1px solid var(--dropdown-border);
 		border-bottom: none;
 		border-right: none;
 		transform: rotate(45deg);
@@ -560,8 +551,8 @@ const PortalTooltip = styled.div<{ top: number; left: number }>`
 	left: ${(props) => props.left}px;
 	transform: translateX(-50%);
 	padding: 6px 10px;
-	background: rgba(0, 0, 0, 0.9);
-	color: white;
+	background: var(--bg-tertiary);
+	color: var(--text-primary);
 	font-size: 12px;
 	font-weight: 500;
 	border-radius: 6px;
@@ -571,6 +562,7 @@ const PortalTooltip = styled.div<{ top: number; left: number }>`
 	backdrop-filter: blur(4px);
 	pointer-events: none; /* Prevent tooltip from interfering with mouse events */
 	animation: tooltipFadeIn 0.2s ease;
+	border: 1px solid var(--border-primary);
 
 	&::before {
 		content: '';
@@ -579,7 +571,7 @@ const PortalTooltip = styled.div<{ top: number; left: number }>`
 		left: 50%;
 		transform: translateX(-50%);
 		border: 4px solid transparent;
-		border-bottom-color: rgba(0, 0, 0, 0.9);
+		border-bottom-color: var(--bg-tertiary);
 	}
 
 	@keyframes tooltipFadeIn {
@@ -591,6 +583,42 @@ const PortalTooltip = styled.div<{ top: number; left: number }>`
 			opacity: 1;
 			transform: translateX(-50%) translateY(0);
 		}
+	}
+`;
+
+// Add context menu styles
+const ContextMenu = styled.div<{ top: number; left: number }>`
+	position: fixed;
+	top: ${(props) => props.top}px;
+	left: ${(props) => props.left}px;
+	background: rgba(30, 30, 40, 0.95);
+	backdrop-filter: blur(20px);
+	border: 1px solid rgba(255, 255, 255, 0.1);
+	border-radius: 8px;
+	padding: 4px 0;
+	min-width: 120px;
+	z-index: 1000;
+	box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+`;
+
+const ContextMenuItem = styled.div<{ danger?: boolean }>`
+	padding: 8px 16px;
+	color: ${(props) => (props.danger ? '#ff6b6b' : '#e2e8f0')};
+	cursor: pointer;
+	font-size: 12px;
+	transition: background-color 0.2s ease;
+
+	&:hover {
+		background: ${(props) =>
+			props.danger ? 'rgba(255, 107, 107, 0.1)' : 'rgba(255, 255, 255, 0.05)'};
+	}
+
+	&:first-child {
+		border-radius: 6px 6px 0 0;
+	}
+
+	&:last-child {
+		border-radius: 0 0 6px 6px;
 	}
 `;
 
@@ -683,6 +711,7 @@ export const App: React.FC = () => {
 	const {
 		files,
 		originalFiles,
+		filteredFiles,
 		selectedRows,
 		searchText,
 		searchField,
@@ -691,11 +720,15 @@ export const App: React.FC = () => {
 		isDirty,
 		currentFile,
 		isPlaying,
+		settings,
+		columnVisibility,
+		columnOrder,
 	} = useStoreWithEqualityFn(
 		useStore,
 		(state: AppState) => ({
 			files: state.files,
 			originalFiles: state.originalFiles,
+			filteredFiles: state.filteredFiles,
 			selectedRows: state.selectedRows,
 			searchText: state.searchText,
 			searchField: state.searchField,
@@ -704,6 +737,9 @@ export const App: React.FC = () => {
 			isDirty: state.isDirty,
 			currentFile: state.audioPlayer.currentFile,
 			isPlaying: state.audioPlayer.isPlaying,
+			settings: state.settings,
+			columnVisibility: state.columnVisibility,
+			columnOrder: state.columnOrder,
 		}),
 		shallow
 	);
@@ -717,11 +753,56 @@ export const App: React.FC = () => {
 	const [dragCounter, setDragCounter] = useState(0);
 	const [isMappingModalOpen, setIsMappingModalOpen] = useState(false);
 	const [isMirrorModalOpen, setIsMirrorModalOpen] = useState(false);
+	const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
 	const [sortConfig, setSortConfig] = useState<{
 		key: keyof Wavedata;
 		direction: 'asc' | 'desc';
 	} | null>({ key: 'filename', direction: 'asc' });
+
+	// Add context menu state
+	const [contextMenu, setContextMenu] = useState<{
+		visible: boolean;
+		x: number;
+		y: number;
+		fileIndex: number;
+	} | null>(null);
+
+	// Add column header context menu state
+	const [columnContextMenu, setColumnContextMenu] = useState<{
+		visible: boolean;
+		x: number;
+		y: number;
+		column: string;
+	} | null>(null);
+
+	// Add drag and drop state
+	const [dragState, setDragState] = useState<{
+		isDragging: boolean;
+		draggedColumnIndex: number | null;
+		dropTargetIndex: number | null;
+	}>({
+		isDragging: false,
+		draggedColumnIndex: null,
+		dropTargetIndex: null,
+	});
+
 	const filterContainerRef = useRef<HTMLDivElement>(null);
+	const contextMenuRef = useRef(contextMenu);
+	const columnContextMenuRef = useRef(columnContextMenu);
+	const isFilterOpenRef = useRef(isFilterOpen);
+
+	// Keep refs in sync with state
+	useEffect(() => {
+		contextMenuRef.current = contextMenu;
+	}, [contextMenu]);
+
+	useEffect(() => {
+		columnContextMenuRef.current = columnContextMenu;
+	}, [columnContextMenu]);
+
+	useEffect(() => {
+		isFilterOpenRef.current = isFilterOpen;
+	}, [isFilterOpen]);
 
 	// Check if electronAPI is available
 	const [apiReady, setApiReady] = useState(false);
@@ -751,11 +832,120 @@ export const App: React.FC = () => {
 		{ value: 'ixmlNote', label: 'Note' },
 	];
 
+	// Define all columns configuration
+	const columnConfigs = {
+		audio: {
+			key: 'audio',
+			label: '♫',
+			width: '50px',
+			sortable: false,
+			hideable: false,
+		},
+		filename: {
+			key: 'filename',
+			label: 'Filename',
+			width: '280px',
+			sortable: true,
+			hideable: true,
+		},
+		show: {
+			key: 'show',
+			label: 'Show',
+			width: '80px',
+			sortable: true,
+			hideable: true,
+		},
+		category: {
+			key: 'category',
+			label: 'Category',
+			width: '100px',
+			sortable: true,
+			hideable: true,
+		},
+		subcategory: {
+			key: 'subcategory',
+			label: 'Subcategory',
+			width: '100px',
+			sortable: true,
+			hideable: true,
+		},
+		scene: {
+			key: 'scene',
+			label: 'Scene',
+			width: '80px',
+			sortable: true,
+			hideable: true,
+		},
+		take: {
+			key: 'take',
+			label: 'Take',
+			width: '60px',
+			sortable: true,
+			hideable: true,
+		},
+		ixmlNote: {
+			key: 'ixmlNote',
+			label: 'Note',
+			width: '120px',
+			sortable: true,
+			hideable: true,
+		},
+		duration: {
+			key: 'duration',
+			label: 'Duration',
+			width: '80px',
+			sortable: true,
+			hideable: true,
+		},
+		fileSize: {
+			key: 'fileSize',
+			label: 'Size',
+			width: '80px',
+			sortable: true,
+			hideable: true,
+		},
+	};
+
+	// Create ordered columns array based on columnOrder state
+	const orderedColumns = columnOrder.map(
+		(columnKey) => columnConfigs[columnKey]
+	);
+
+	// Create visible columns array for drag logic
+	const visibleColumns = orderedColumns.filter((column) => {
+		// Always include non-hideable columns (like audio controls)
+		if (!column.hideable) return true;
+		// Check visibility for hideable columns
+		return columnVisibility[column.key as keyof typeof columnVisibility];
+	});
+
+	// Debug logging for column order
+	console.log('[COLUMN-ORDER] Current columnOrder:', columnOrder);
+	console.log(
+		'[COLUMN-ORDER] Ordered columns:',
+		orderedColumns.map((col) => col?.label || 'undefined')
+	);
+	console.log(
+		'[COLUMN-ORDER] Visible columns:',
+		visibleColumns.map((col) => col?.label || 'undefined')
+	);
+
 	// --- Memos & Effects ---
 	const sortedFiles = useMemo(() => {
-		if (!sortConfig) return files;
+		// Use filteredFiles if search is active, otherwise use all files
+		const filesToSort = searchText ? filteredFiles : files;
 
-		return [...files].sort((a, b) => {
+		console.log('[SORT] sortedFiles calculation:', {
+			searchText: searchText,
+			hasSearchText: !!searchText,
+			filesLength: files.length,
+			filteredFilesLength: filteredFiles.length,
+			filesToSortLength: filesToSort.length,
+		});
+
+		if (!sortConfig) return filesToSort;
+
+		return [...filesToSort].sort((a, b) => {
 			const aValue = a[sortConfig.key as keyof Wavedata] as any;
 			const bValue = b[sortConfig.key as keyof Wavedata] as any;
 
@@ -767,7 +957,7 @@ export const App: React.FC = () => {
 			}
 			return 0;
 		});
-	}, [files, sortConfig]);
+	}, [files, filteredFiles, searchText, sortConfig]);
 
 	useEffect(() => {
 		// Only set up listeners when API is ready and available
@@ -843,17 +1033,59 @@ export const App: React.FC = () => {
 		setFilterOpen(!isFilterOpen);
 	}, [isFilterOpen, calculateDropdownPosition]);
 
-	const handleClickOutside = (event: MouseEvent) => {
-		if (
-			filterContainerRef.current &&
-			!filterContainerRef.current.contains(event.target as Node)
-		) {
-			setFilterOpen(false);
-		}
-	};
+	// Enhanced click outside handler for dropdown and context menus
+	const handleDocumentClick = useCallback(
+		(event: MouseEvent) => {
+			// Use refs to get current state without dependencies
+			const currentContextMenu = contextMenuRef.current;
+			const currentColumnContextMenu = columnContextMenuRef.current;
+			const currentFilterOpen = isFilterOpenRef.current;
+
+			// Handle file context menu - only close if click is outside the context menu
+			if (currentContextMenu) {
+				const target = event.target as Element;
+				// Check if the click is on a context menu item or its children
+				const isContextMenuClick = target.closest('[data-context-menu]');
+				if (!isContextMenuClick) {
+					console.log('[CONTEXT-MENU] Click outside context menu, closing');
+					setContextMenu(null);
+				} else {
+					console.log('[CONTEXT-MENU] Click inside context menu, keeping open');
+				}
+			}
+
+			// Handle column context menu - only close if click is outside the context menu
+			if (currentColumnContextMenu) {
+				const target = event.target as Element;
+				const isColumnContextMenuClick = target.closest(
+					'[data-column-context-menu]'
+				);
+				if (!isColumnContextMenuClick) {
+					console.log(
+						'[COLUMN-CONTEXT-MENU] Click outside column context menu, closing'
+					);
+					setColumnContextMenu(null);
+				} else {
+					console.log(
+						'[COLUMN-CONTEXT-MENU] Click inside column context menu, keeping open'
+					);
+				}
+			}
+
+			// Handle dropdown
+			if (
+				currentFilterOpen &&
+				filterContainerRef.current &&
+				!filterContainerRef.current.contains(event.target as Node)
+			) {
+				setFilterOpen(false);
+			}
+		},
+		[] // Empty dependency array to prevent re-creation
+	);
 
 	useEffect(() => {
-		document.addEventListener('mousedown', handleClickOutside);
+		document.addEventListener('mousedown', handleDocumentClick);
 
 		const handleResize = () => {
 			if (isFilterOpen) {
@@ -864,10 +1096,194 @@ export const App: React.FC = () => {
 		window.addEventListener('resize', handleResize);
 
 		return () => {
-			document.removeEventListener('mousedown', handleClickOutside);
+			document.removeEventListener('mousedown', handleDocumentClick);
 			window.removeEventListener('resize', handleResize);
 		};
-	}, [isFilterOpen, calculateDropdownPosition]);
+	}, [isFilterOpen, calculateDropdownPosition, handleDocumentClick]);
+
+	// Add context menu handlers
+	const handleContextMenu = useCallback(
+		(e: React.MouseEvent, fileIndex: number) => {
+			e.preventDefault();
+			e.stopPropagation();
+
+			console.log('[CONTEXT-MENU] Right-click on file with index:', fileIndex);
+			console.log(
+				'[CONTEXT-MENU] File at index:',
+				files[fileIndex]?.filename || 'undefined'
+			);
+
+			setContextMenu({
+				visible: true,
+				x: e.clientX,
+				y: e.clientY,
+				fileIndex,
+			});
+		},
+		[files]
+	);
+
+	const handleRemoveFile = useCallback(() => {
+		console.log('[CONTEXT-MENU] handleRemoveFile called');
+		console.log('[CONTEXT-MENU] contextMenu:', contextMenu);
+		console.log('[CONTEXT-MENU] selectedRows:', selectedRows);
+
+		if (contextMenu) {
+			// If the file being removed is currently selected, select all selected indices
+			// Otherwise, just remove the single file
+			const indicesToRemove = selectedRows.includes(contextMenu.fileIndex)
+				? selectedRows
+				: [contextMenu.fileIndex];
+
+			console.log('[CONTEXT-MENU] indicesToRemove:', indicesToRemove);
+			console.log('[CONTEXT-MENU] About to call removeFiles via storeActions');
+
+			// Use the same pattern as other functions in this component
+			storeActions.removeFiles(indicesToRemove);
+
+			console.log('[CONTEXT-MENU] Called removeFiles, closing context menu');
+			setContextMenu(null);
+		} else {
+			console.log('[CONTEXT-MENU] No contextMenu available');
+		}
+	}, [contextMenu, selectedRows]);
+
+	// Add column header context menu handlers
+	const handleColumnContextMenu = useCallback(
+		(e: React.MouseEvent, column: string) => {
+			e.preventDefault();
+			e.stopPropagation();
+
+			console.log('[COLUMN-CONTEXT-MENU] Right-click on column:', column);
+
+			setColumnContextMenu({
+				visible: true,
+				x: e.clientX,
+				y: e.clientY,
+				column,
+			});
+		},
+		[]
+	);
+
+	const handleToggleColumn = useCallback(
+		(column: string) => {
+			console.log('[COLUMN-CONTEXT-MENU] Toggle column:', column);
+			storeActions.toggleColumnVisibility(column as any);
+			setColumnContextMenu(null);
+		},
+		[storeActions]
+	);
+
+	const handleResetColumns = useCallback(() => {
+		console.log('[COLUMN-CONTEXT-MENU] Reset all columns');
+		storeActions.resetColumnVisibility();
+		setColumnContextMenu(null);
+	}, [storeActions]);
+
+	// Add drag and drop handlers
+	const handleDragStart = useCallback(
+		(e: React.DragEvent, columnIndex: number) => {
+			console.log('[DRAG] Drag start for column index:', columnIndex);
+			e.dataTransfer.effectAllowed = 'move';
+			e.dataTransfer.setData('text/plain', columnIndex.toString());
+			// Mark this as a column drag to distinguish from file drag
+			e.dataTransfer.setData('application/column-reorder', 'true');
+
+			setDragState({
+				isDragging: true,
+				draggedColumnIndex: columnIndex,
+				dropTargetIndex: null,
+			});
+		},
+		[]
+	);
+
+	const handleDragOver = useCallback(
+		(e: React.DragEvent, columnIndex: number) => {
+			e.preventDefault();
+			e.dataTransfer.dropEffect = 'move';
+
+			setDragState((prev) => ({
+				...prev,
+				dropTargetIndex: columnIndex,
+			}));
+		},
+		[]
+	);
+
+	const handleDragLeave = useCallback((e: React.DragEvent) => {
+		// Only clear if we're leaving the entire column header area
+		const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+		const isLeavingColumn =
+			e.clientX < rect.left ||
+			e.clientX > rect.right ||
+			e.clientY < rect.top ||
+			e.clientY > rect.bottom;
+
+		if (isLeavingColumn) {
+			setDragState((prev) => ({
+				...prev,
+				dropTargetIndex: null,
+			}));
+		}
+	}, []);
+
+	const handleColumnDrop = useCallback(
+		(e: React.DragEvent, dropIndex: number) => {
+			e.preventDefault();
+
+			const draggedIndex = parseInt(e.dataTransfer.getData('text/plain'));
+
+			console.log('[DRAG] Drop - from:', draggedIndex, 'to:', dropIndex);
+
+			if (draggedIndex !== dropIndex && draggedIndex !== null) {
+				// Convert visual indices (from visible columns) to columnOrder indices
+				const draggedColumn = visibleColumns[draggedIndex];
+				const dropColumn = visibleColumns[dropIndex];
+
+				if (draggedColumn && dropColumn) {
+					const draggedOrderIndex = columnOrder.indexOf(
+						draggedColumn.key as any
+					);
+					const dropOrderIndex = columnOrder.indexOf(dropColumn.key as any);
+
+					console.log(
+						'[DRAG] Converting indices - visual:',
+						{ draggedIndex, dropIndex },
+						'visible columns:',
+						{
+							draggedColumn: draggedColumn.label,
+							dropColumn: dropColumn.label,
+						},
+						'order:',
+						{ draggedOrderIndex, dropOrderIndex }
+					);
+
+					if (draggedOrderIndex !== -1 && dropOrderIndex !== -1) {
+						storeActions.reorderColumns(draggedOrderIndex, dropOrderIndex);
+					}
+				}
+			}
+
+			setDragState({
+				isDragging: false,
+				draggedColumnIndex: null,
+				dropTargetIndex: null,
+			});
+		},
+		[storeActions, visibleColumns, columnOrder]
+	);
+
+	const handleDragEnd = useCallback((e: React.DragEvent) => {
+		console.log('[DRAG] Drag end');
+
+		setDragState({
+			isDragging: false,
+			draggedColumnIndex: null,
+			dropTargetIndex: null,
+		});
+	}, []);
 
 	// --- Keyboard Shortcuts ---
 	useEffect(() => {
@@ -1149,15 +1565,27 @@ export const App: React.FC = () => {
 
 	return (
 		<AppContainer
-			onDragOver={(e) => e.preventDefault()}
+			onDragOver={(e) => {
+				e.preventDefault();
+				// Don't show file drop effect for column reordering
+				if (e.dataTransfer.types.includes('application/column-reorder')) {
+					e.dataTransfer.dropEffect = 'none';
+				}
+			}}
 			onDrop={handleDrop}
 			onDragEnter={(e) => {
 				e.preventDefault();
-				setDragCounter((prev) => prev + 1);
+				// Don't increment drag counter for column reordering
+				if (!e.dataTransfer.types.includes('application/column-reorder')) {
+					setDragCounter((prev) => prev + 1);
+				}
 			}}
 			onDragLeave={(e) => {
 				e.preventDefault();
-				setDragCounter((prev) => Math.max(0, prev - 1));
+				// Don't decrement drag counter for column reordering
+				if (!e.dataTransfer.types.includes('application/column-reorder')) {
+					setDragCounter((prev) => Math.max(0, prev - 1));
+				}
 			}}>
 			<GlobalStyles />
 
@@ -1191,6 +1619,17 @@ export const App: React.FC = () => {
 					.filter(Boolean)}
 				allFiles={files}
 				totalFiles={files.length}
+			/>
+
+			<SettingsModal
+				isOpen={isSettingsModalOpen}
+				onClose={() => setIsSettingsModalOpen(false)}
+				isDarkMode={settings.isDarkMode}
+				onThemeToggle={storeActions.toggleDarkMode}
+				fontSize={settings.fontSize}
+				onFontSizeChange={storeActions.setFontSize}
+				showTooltips={settings.showTooltips}
+				onTooltipsToggle={storeActions.toggleTooltips}
 			/>
 
 			{isDraggingActive && (
@@ -1234,6 +1673,11 @@ export const App: React.FC = () => {
 				<MiddleSection>METADATA EDITOR</MiddleSection>
 
 				<RightSection>
+					<TooltipButton
+						onClick={() => setIsSettingsModalOpen(true)}
+						tooltip='Open application settings'>
+						⚙️
+					</TooltipButton>
 					<SearchContainer ref={filterContainerRef}>
 						<SearchInput
 							type='text'
@@ -1243,7 +1687,7 @@ export const App: React.FC = () => {
 									: `Search ${
 											searchOptions.find((o) => o.value === searchField)
 												?.label || 'Filename'
-									  }...`
+																		}...`
 							}
 							value={searchText}
 							onChange={(e) => storeActions.setSearch(e.target.value)}
@@ -1286,56 +1730,67 @@ export const App: React.FC = () => {
 					<Table>
 						<thead>
 							<tr>
-								<TableHeader
-									style={{ width: '50px', textAlign: 'center' }}
-									title='Audio playback controls'>
-									♫
-								</TableHeader>
-								<TableHeader
-									style={{ width: '280px' }}
-									onClick={() => handleSort('filename')}>
-									Filename{renderSortIndicator('filename')}
-								</TableHeader>
-								<TableHeader
-									style={{ width: '80px' }}
-									onClick={() => handleSort('show')}>
-									Show{renderSortIndicator('show')}
-								</TableHeader>
-								<TableHeader
-									style={{ width: '100px' }}
-									onClick={() => handleSort('category')}>
-									Category{renderSortIndicator('category')}
-								</TableHeader>
-								<TableHeader
-									style={{ width: '100px' }}
-									onClick={() => handleSort('subcategory')}>
-									Subcategory{renderSortIndicator('subcategory')}
-								</TableHeader>
-								<TableHeader
-									style={{ width: '80px' }}
-									onClick={() => handleSort('scene')}>
-									Scene{renderSortIndicator('scene')}
-								</TableHeader>
-								<TableHeader
-									style={{ width: '60px' }}
-									onClick={() => handleSort('take')}>
-									Take{renderSortIndicator('take')}
-								</TableHeader>
-								<TableHeader
-									style={{ width: '120px' }}
-									onClick={() => handleSort('ixmlNote')}>
-									Note{renderSortIndicator('ixmlNote')}
-								</TableHeader>
-								<TableHeader
-									style={{ width: '80px' }}
-									onClick={() => handleSort('duration')}>
-									Duration{renderSortIndicator('duration')}
-								</TableHeader>
-								<TableHeader
-									style={{ width: '80px' }}
-									onClick={() => handleSort('fileSize')}>
-									Size{renderSortIndicator('fileSize')}
-								</TableHeader>
+								{visibleColumns.map((column, columnIndex) => {
+									// Non-hideable columns (like audio controls)
+									if (!column.hideable) {
+										return (
+											<TableHeader
+												key={column.key}
+												style={{
+													width: column.width,
+													textAlign: column.key === 'audio' ? 'center' : 'left',
+												}}
+												title={
+													column.key === 'audio'
+														? 'Audio playback controls'
+														: undefined
+												}>
+												{column.label}
+											</TableHeader>
+										);
+									}
+
+									// Hideable columns (all visible ones are included in visibleColumns)
+									const isDragged =
+										dragState.draggedColumnIndex === columnIndex;
+									const isDropTarget =
+										dragState.dropTargetIndex === columnIndex;
+
+									return (
+										<TableHeader
+											key={column.key}
+											draggable
+											style={{
+												width: column.width,
+												opacity: isDragged ? 0.5 : 1,
+												backgroundColor: isDropTarget
+													? 'rgba(0, 122, 255, 0.2)'
+													: undefined,
+												borderLeft: isDropTarget
+													? '2px solid #007aff'
+													: undefined,
+												cursor: 'move',
+											}}
+											onClick={
+												column.sortable
+													? () => handleSort(column.key as keyof Wavedata)
+													: undefined
+											}
+											onContextMenu={(e) =>
+												handleColumnContextMenu(e, column.key)
+											}
+											onDragStart={(e) => handleDragStart(e, columnIndex)}
+											onDragOver={(e) => handleDragOver(e, columnIndex)}
+											onDragLeave={handleDragLeave}
+											onDrop={(e) => handleColumnDrop(e, columnIndex)}
+											onDragEnd={handleDragEnd}
+											title={`Drag to reorder • Right-click to show/hide columns`}>
+											{column.label}
+											{column.sortable &&
+												renderSortIndicator(column.key as keyof Wavedata)}
+										</TableHeader>
+									);
+								})}
 							</tr>
 						</thead>
 						<tbody>
@@ -1346,6 +1801,15 @@ export const App: React.FC = () => {
 								const originalFile = originalFiles.find(
 									(f) => f.filePath === file.filePath
 								);
+
+								// Skip rendering if originalIndex is invalid
+								if (originalIndex === -1) {
+									console.warn(
+										'[TABLE] Could not find originalIndex for file:',
+										file.filename
+									);
+									return null;
+								}
 
 								return (
 									<TableRow
@@ -1365,43 +1829,80 @@ export const App: React.FC = () => {
 												e.ctrlKey || e.metaKey,
 												e.shiftKey
 											);
-										}}>
-										<TableCell
-											style={{ textAlign: 'center', cursor: 'pointer' }}
-											onClick={(e) => handlePlayAudio(file, e)}
-											title={
-												currentFile?.filePath === file.filePath && isPlaying
-													? 'Pause audio'
-													: 'Play audio'
-											}>
-											{currentFile?.filePath === file.filePath && isPlaying
-												? '⏸'
-												: '▶'}
-										</TableCell>
-										<TableCell>{basename(file.filePath)}</TableCell>
-										{EDITABLE_FIELDS.map((field) => (
-											<TableCell
-												key={field}
-												onClick={(e) => e.stopPropagation()}>
-												<CellContainer>
-													<EditableCell
-														value={file[field] as string}
-														onChange={(e) =>
-															handleCellEdit(
-																file.filePath,
-																field,
-																e.target.value
-															)
-														}
-													/>
-													{originalFile?.[field] !== file[field] && (
-														<DirtyIndicator />
-													)}
-												</CellContainer>
-											</TableCell>
-										))}
-										<TableCell>{formatDuration(file.duration)}</TableCell>
-										<TableCell>{formatFileSize(file.fileSize)}</TableCell>
+										}}
+										onContextMenu={(e) => handleContextMenu(e, originalIndex)}>
+										{visibleColumns.map((column) => {
+											// Non-hideable columns (like audio controls)
+											if (!column.hideable) {
+												return (
+													<TableCell
+														key={column.key}
+														style={{ textAlign: 'center', cursor: 'pointer' }}
+														onClick={(e) => handlePlayAudio(file, e)}
+														title={
+															currentFile?.filePath === file.filePath &&
+															isPlaying
+																? 'Pause audio'
+																: 'Play audio'
+														}>
+														{currentFile?.filePath === file.filePath &&
+														isPlaying
+															? '⏸'
+															: '▶'}
+													</TableCell>
+												);
+											}
+
+											// Hideable columns (all visible ones are included in visibleColumns)
+
+											// Render different cell types based on column
+											if (column.key === 'filename') {
+												return (
+													<TableCell key={column.key}>
+														{basename(file.filePath)}
+													</TableCell>
+												);
+											} else if (EDITABLE_FIELDS.includes(column.key as any)) {
+												return (
+													<TableCell
+														key={column.key}
+														onClick={(e) => e.stopPropagation()}>
+														<CellContainer>
+															<EditableCell
+																value={
+																	file[column.key as keyof Wavedata] as string
+																}
+																onChange={(e) =>
+																	handleCellEdit(
+																		file.filePath,
+																		column.key as keyof Wavedata,
+																		e.target.value
+																	)
+																}
+															/>
+															{originalFile?.[column.key as keyof Wavedata] !==
+																file[column.key as keyof Wavedata] && (
+																<DirtyIndicator />
+															)}
+														</CellContainer>
+													</TableCell>
+												);
+											} else if (column.key === 'duration') {
+												return (
+													<TableCell key={column.key}>
+														{formatDuration(file.duration)}
+													</TableCell>
+												);
+											} else if (column.key === 'fileSize') {
+												return (
+													<TableCell key={column.key}>
+														{formatFileSize(file.fileSize)}
+													</TableCell>
+												);
+											}
+
+											return null;
+										})}
 									</TableRow>
 								);
 							})}
@@ -1411,6 +1912,69 @@ export const App: React.FC = () => {
 			</TableContainer>
 
 			<AudioPlayer />
+
+			{/* Context Menu */}
+			{contextMenu &&
+				createPortal(
+					<ContextMenu
+						top={contextMenu.y}
+						left={contextMenu.x}
+						data-context-menu>
+						<ContextMenuItem
+							danger
+							onClick={handleRemoveFile}
+							data-context-menu>
+							{selectedRows.includes(contextMenu.fileIndex) &&
+							selectedRows.length > 1
+								? `Remove ${selectedRows.length} files`
+								: 'Remove file'}
+						</ContextMenuItem>
+					</ContextMenu>,
+					document.body
+				)}
+
+			{/* Column Header Context Menu */}
+			{columnContextMenu &&
+				createPortal(
+					<ContextMenu
+						top={columnContextMenu.y}
+						left={columnContextMenu.x}
+						data-column-context-menu>
+						{orderedColumns
+							.filter((col) => col.hideable)
+							.map((column) => (
+								<ContextMenuItem
+									key={column.key}
+									onClick={() => handleToggleColumn(column.key)}
+									data-column-context-menu>
+									<span style={{ marginRight: '8px' }}>
+										{columnVisibility[
+											column.key as keyof typeof columnVisibility
+										]
+											? '☑'
+											: '☐'}
+									</span>
+									{column.label}
+								</ContextMenuItem>
+							))}
+						<ContextMenuItem
+							onClick={handleResetColumns}
+							data-column-context-menu
+							style={{
+								borderTop: '1px solid rgba(255, 255, 255, 0.1)',
+								marginTop: '4px',
+								paddingTop: '8px',
+							}}>
+							Reset Column Visibility
+						</ContextMenuItem>
+						<ContextMenuItem
+							onClick={storeActions.resetColumnOrder}
+							data-column-context-menu>
+							Reset Column Order
+						</ContextMenuItem>
+					</ContextMenu>,
+					document.body
+				)}
 		</AppContainer>
 	);
 };

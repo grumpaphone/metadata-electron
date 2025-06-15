@@ -13,7 +13,7 @@ const VolumeContainer = styled.div`
 const VolumeSlider = styled.input`
 	width: 80px;
 	height: 4px;
-	background: rgba(255, 255, 255, 0.2);
+	background: var(--border-primary);
 	border-radius: 2px;
 	outline: none;
 	cursor: pointer;
@@ -22,7 +22,7 @@ const VolumeSlider = styled.input`
 		appearance: none;
 		width: 12px;
 		height: 12px;
-		background: #007aff;
+		background: var(--accent-primary);
 		border-radius: 50%;
 		cursor: pointer;
 	}
@@ -30,7 +30,7 @@ const VolumeSlider = styled.input`
 	&::-moz-range-thumb {
 		width: 12px;
 		height: 12px;
-		background: #007aff;
+		background: var(--accent-primary);
 		border-radius: 50%;
 		cursor: pointer;
 		border: none;

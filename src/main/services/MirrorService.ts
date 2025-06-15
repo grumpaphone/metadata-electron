@@ -1,10 +1,10 @@
-import * as fs from 'fs';
-import * as path from 'path';
+import fs from 'fs';
+import path from 'path';
 import {
 	MirrorConfiguration,
 	MirrorResult,
-	Wavedata,
 	MirrorOrganizeField,
+	Wavedata,
 } from '../../types';
 import { metadataService } from './MetadataService';
 
@@ -33,7 +33,7 @@ export class MirrorService {
 			const filesToProcess = config.selectedFiles
 				? allFiles.filter((file) =>
 						config.selectedFiles?.includes(file.filePath)
-				  )
+				)
 				: allFiles;
 
 			console.log(`[MIRROR] Processing ${filesToProcess.length} files`);

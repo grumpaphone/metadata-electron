@@ -1,6 +1,7 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './TableRenderer';
+import { ThemeProvider } from './components/ThemeProvider';
 
 // Error Boundary Component
 class ErrorBoundary extends React.Component<
@@ -42,6 +43,8 @@ const container = document.getElementById('root');
 const root = createRoot(container!);
 root.render(
 	<ErrorBoundary>
-		<App />
+		<ThemeProvider>
+			<App />
+		</ThemeProvider>
 	</ErrorBoundary>
 );

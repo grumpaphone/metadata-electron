@@ -27,6 +27,36 @@ export interface AudioPlayerState {
 	error?: string | null;
 }
 
+export interface SettingsState {
+	isDarkMode: boolean;
+	fontSize: string;
+	showTooltips: boolean;
+}
+
+export interface ColumnVisibilityState {
+	filename: boolean;
+	show: boolean;
+	category: boolean;
+	subcategory: boolean;
+	scene: boolean;
+	take: boolean;
+	ixmlNote: boolean;
+	duration: boolean;
+	fileSize: boolean;
+}
+
+export type ColumnKey =
+	| 'audio'
+	| 'filename'
+	| 'show'
+	| 'category'
+	| 'subcategory'
+	| 'scene'
+	| 'take'
+	| 'ixmlNote'
+	| 'duration'
+	| 'fileSize';
+
 // Exporting AppState to be used in components for type safety.
 export interface AppState {
 	files: Wavedata[];
@@ -47,8 +77,15 @@ export interface AppState {
 	filteredFiles: Wavedata[];
 	selectedRows: number[];
 
+	// Column Visibility State
+	columnVisibility: ColumnVisibilityState;
+	columnOrder: ColumnKey[];
+
 	// Audio Player State
 	audioPlayer: AudioPlayerState;
+
+	// Settings State
+	settings: SettingsState;
 
 	addFiles: (files: Wavedata[]) => void;
 	setFiles: (files: Wavedata[]) => void;
@@ -89,7 +126,77 @@ export interface AppState {
 	// Audio Data Cache Actions
 	addAudioDataToCache: (filePath: string, data: ArrayBuffer) => void;
 	getAudioDataFromCache: (filePath: string) => ArrayBuffer | undefined;
+
+	// Settings Actions
+	toggleDarkMode: () => void;
+	setFontSize: (size: string) => void;
+	toggleTooltips: () => void;
+	loadSettings: () => void;
+	saveSettings: () => void;
+
+	// Column Visibility Actions
+	toggleColumnVisibility: (column: keyof ColumnVisibilityState) => void;
+	resetColumnVisibility: () => void;
+
+	// Column Order Actions
+	reorderColumns: (fromIndex: number, toIndex: number) => void;
+	resetColumnOrder: () => void;
 }
+
+// Settings persistence helpers
+const SETTINGS_STORAGE_KEY = 'metadata-editor-settings';
+
+const getDefaultSettings = (): SettingsState => ({
+	isDarkMode: false,
+	fontSize: '11',
+	showTooltips: true,
+});
+
+const getDefaultColumnVisibility = (): ColumnVisibilityState => ({
+	filename: true,
+	show: true,
+	category: true,
+	subcategory: true,
+	scene: true,
+	take: true,
+	ixmlNote: true,
+	duration: true,
+	fileSize: true,
+});
+
+const getDefaultColumnOrder = (): ColumnKey[] => [
+	'audio',
+	'filename',
+	'show',
+	'category',
+	'subcategory',
+	'scene',
+	'take',
+	'ixmlNote',
+	'duration',
+	'fileSize',
+];
+
+const loadSettingsFromStorage = (): SettingsState => {
+	try {
+		const stored = localStorage.getItem(SETTINGS_STORAGE_KEY);
+		if (stored) {
+			const parsed = JSON.parse(stored);
+			return { ...getDefaultSettings(), ...parsed };
+		}
+	} catch (error) {
+		console.warn('Failed to load settings from localStorage:', error);
+	}
+	return getDefaultSettings();
+};
+
+const saveSettingsToStorage = (settings: SettingsState) => {
+	try {
+		localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
+	} catch (error) {
+		console.warn('Failed to save settings to localStorage:', error);
+	}
+};
 
 export const useStore = createWithEqualityFn<AppState>(
 	(set, get) => ({
@@ -110,6 +217,8 @@ export const useStore = createWithEqualityFn<AppState>(
 		searchField: 'all',
 		filteredFiles: [],
 		selectedRows: [],
+		columnVisibility: getDefaultColumnVisibility(),
+		columnOrder: getDefaultColumnOrder(),
 		audioPlayer: {
 			currentFile: null,
 			isPlaying: false,
@@ -121,6 +230,7 @@ export const useStore = createWithEqualityFn<AppState>(
 			waveformReady: false,
 			isLoading: false,
 		},
+		settings: loadSettingsFromStorage(),
 
 		addFiles: (files) => {
 			set((state) => {
@@ -161,15 +271,28 @@ export const useStore = createWithEqualityFn<AppState>(
 		setIsLoading: (isLoading) => set({ isLoading }),
 
 		setSearch: (searchText, searchField) => {
+			console.log('[STORE] setSearch called with:', {
+				searchText,
+				searchField,
+			});
 			const state = get();
 			const newSearchField = searchField || state.searchField;
 			const lowercasedFilter = searchText.toLowerCase();
+
+			console.log('[STORE] Search config:', {
+				searchText,
+				newSearchField,
+				lowercasedFilter,
+				currentSearchField: state.searchField,
+			});
+			console.log('[STORE] Total files to search:', state.files.length);
 
 			const filteredFiles = state.files.filter((file) => {
 				if (!lowercasedFilter) return true;
 
 				// If searching all fields, check multiple fields
 				if (newSearchField === 'all') {
+					console.log('[STORE] Searching all fields for file:', file.filename);
 					const searchableFields = [
 						'filename',
 						'show',
@@ -179,20 +302,46 @@ export const useStore = createWithEqualityFn<AppState>(
 						'take',
 						'ixmlNote',
 					];
-					return searchableFields.some((field) => {
+					const result = searchableFields.some((field) => {
 						const fieldValue = file[field as keyof Wavedata] as string;
-						return String(fieldValue || '')
+						const fieldContainsSearch = String(fieldValue || '')
 							.toLowerCase()
 							.includes(lowercasedFilter);
+						if (fieldContainsSearch) {
+							console.log(
+								`[STORE] Match found in field '${field}':`,
+								fieldValue
+							);
+						}
+						return fieldContainsSearch;
 					});
+					console.log('[STORE] All fields search result:', result);
+					return result;
 				}
 
 				// Otherwise search specific field
+				console.log(
+					`[STORE] Searching specific field '${newSearchField}' for file:`,
+					file.filename
+				);
 				const fieldValue = file[newSearchField as keyof Wavedata] as string;
-				return String(fieldValue || '')
+				const result = String(fieldValue || '')
 					.toLowerCase()
 					.includes(lowercasedFilter);
+				console.log(`[STORE] Field '${newSearchField}' value:`, fieldValue);
+				console.log(`[STORE] Field search result:`, result);
+				return result;
 			});
+
+			console.log(
+				'[STORE] Filtered files result:',
+				filteredFiles.length,
+				'files'
+			);
+			console.log(
+				'[STORE] First few matches:',
+				filteredFiles.slice(0, 3).map((f) => f.filename)
+			);
 
 			set({
 				searchText,
@@ -202,9 +351,90 @@ export const useStore = createWithEqualityFn<AppState>(
 		},
 
 		removeFiles: (indices) =>
-			set((state) => ({
-				files: state.files.filter((_, i) => !indices.includes(i)),
-			})),
+			set((state) => {
+				console.log('[STORE] removeFiles called with indices:', indices);
+				console.log('[STORE] Current files length:', state.files.length);
+				console.log(
+					'[STORE] Files at indices:',
+					indices.map((i) => state.files[i]?.filename || 'undefined')
+				);
+
+				// Get file paths for files being removed (for cache cleanup and audio player)
+				const removedFiles = indices.map((i) => state.files[i]).filter(Boolean);
+				const removedFilePaths = new Set(removedFiles.map((f) => f.filePath));
+
+				// Filter out removed files from both arrays
+				const newFiles = state.files.filter((_, i) => !indices.includes(i));
+				const newOriginalFiles = state.originalFiles.filter(
+					(file) => !removedFilePaths.has(file.filePath)
+				);
+
+				// Clean up audio cache for removed files
+				const newAudioCache = new Map(state.audioDataCache);
+				removedFilePaths.forEach((filePath) => {
+					newAudioCache.delete(filePath);
+				});
+
+				// Clear selected rows since indices will change
+				const newSelectedRows: number[] = [];
+
+				// Re-apply current search filter
+				const lowercasedFilter = state.searchText.toLowerCase();
+				const filteredFiles = newFiles.filter((file) => {
+					if (!lowercasedFilter) return true;
+
+					if (state.searchField === 'all') {
+						const searchableFields = [
+							'filename',
+							'show',
+							'category',
+							'subcategory',
+							'scene',
+							'take',
+							'ixmlNote',
+						];
+						return searchableFields.some((field) => {
+							const fieldValue = file[field as keyof Wavedata] as string;
+							return String(fieldValue || '')
+								.toLowerCase()
+								.includes(lowercasedFilter);
+						});
+					}
+
+					const fieldValue = file[
+						state.searchField as keyof Wavedata
+					] as string;
+					return String(fieldValue || '')
+						.toLowerCase()
+						.includes(lowercasedFilter);
+				});
+
+				// Handle audio player state if current file is removed
+				const currentFile = state.audioPlayer.currentFile;
+				let newAudioPlayerState = state.audioPlayer;
+
+				if (currentFile && removedFilePaths.has(currentFile.filePath)) {
+					newAudioPlayerState = {
+						...state.audioPlayer,
+						currentFile: null,
+						isPlaying: false,
+						isPaused: true,
+						currentTime: 0,
+						duration: 0,
+						waveformReady: false,
+						isLoading: false,
+					};
+				}
+
+				return {
+					files: newFiles,
+					originalFiles: newOriginalFiles,
+					audioDataCache: newAudioCache,
+					selectedRows: newSelectedRows,
+					filteredFiles,
+					audioPlayer: newAudioPlayerState,
+				};
+			}),
 
 		updateFileMetadata: (filePath, field, value) =>
 			set((state) => {
@@ -589,6 +819,83 @@ export const useStore = createWithEqualityFn<AppState>(
 
 		getAudioDataFromCache: (filePath) => {
 			return get().audioDataCache.get(filePath);
+		},
+
+		// Settings Actions
+		toggleDarkMode: () => {
+			set((state) => {
+				const newSettings = {
+					...state.settings,
+					isDarkMode: !state.settings.isDarkMode,
+				};
+				saveSettingsToStorage(newSettings);
+				return { settings: newSettings };
+			});
+		},
+
+		setFontSize: (size: string) => {
+			set((state) => {
+				const newSettings = { ...state.settings, fontSize: size };
+				saveSettingsToStorage(newSettings);
+				return { settings: newSettings };
+			});
+		},
+
+		toggleTooltips: () => {
+			set((state) => {
+				const newSettings = {
+					...state.settings,
+					showTooltips: !state.settings.showTooltips,
+				};
+				saveSettingsToStorage(newSettings);
+				return { settings: newSettings };
+			});
+		},
+
+		loadSettings: () => {
+			set((state) => ({
+				settings: loadSettingsFromStorage(),
+			}));
+		},
+
+		saveSettings: () => {
+			const { settings } = get();
+			saveSettingsToStorage(settings);
+		},
+
+		// Column Visibility Actions
+		toggleColumnVisibility: (column: keyof ColumnVisibilityState) => {
+			set((state) => ({
+				columnVisibility: {
+					...state.columnVisibility,
+					[column]: !state.columnVisibility[column],
+				},
+			}));
+		},
+
+		resetColumnVisibility: () => {
+			set({
+				columnVisibility: getDefaultColumnVisibility(),
+			});
+		},
+
+		// Column Order Actions
+		reorderColumns: (fromIndex: number, toIndex: number) => {
+			console.log('[STORE] reorderColumns called:', { fromIndex, toIndex });
+			set((state) => {
+				console.log('[STORE] Current columnOrder:', state.columnOrder);
+				const newOrder = [...state.columnOrder];
+				const [movedColumn] = newOrder.splice(fromIndex, 1);
+				newOrder.splice(toIndex, 0, movedColumn);
+				console.log('[STORE] New columnOrder:', newOrder);
+				return { columnOrder: newOrder };
+			});
+		},
+
+		resetColumnOrder: () => {
+			set({
+				columnOrder: getDefaultColumnOrder(),
+			});
 		},
 	}),
 	Object.is
