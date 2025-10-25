@@ -40,6 +40,10 @@ export const CHANNELS = {
 	createTestFiles: 'ipc:create-test-files',
 	// Debug
 	debugLog: 'ipc:debug-log',
+	// Window Controls
+	windowMinimize: 'ipc:window-minimize',
+	windowClose: 'ipc:window-close',
+	windowToggleFullscreen: 'ipc:window-toggle-fullscreen',
 };
 
 /**
@@ -79,7 +83,16 @@ export interface IElectronAPI {
 	onAutoSaveRequest: (callback: (filePaths: string[]) => void) => () => void;
 	removeAllListeners: (channel: string) => void;
 	// Test Utilities
-	createTestFiles: () => Promise<{ success: boolean; directory: string }>;
+	createTestFiles: () => Promise<{
+		success: boolean;
+		directory: string;
+		files?: string[];
+		errors?: Array<{ filePath: string; error: string }>;
+	}>;
 	// Debug
 	debugLog: (message: string, data?: any) => Promise<void>;
+	// Window Controls
+	windowMinimize: () => Promise<void>;
+	windowClose: () => Promise<void>;
+	windowToggleFullscreen: () => Promise<void>;
 }

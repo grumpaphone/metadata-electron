@@ -14,9 +14,8 @@ const PlayerContainer = styled.div<{ isVisible: boolean }>`
 	bottom: 0;
 	left: 0;
 	right: 0;
-	height: 90px; // Increased from 80px to accommodate higher resolution waveform
-	background: var(--player-bg);
-	backdrop-filter: blur(15px);
+	height: 90px;
+	background: rgba(10, 14, 24, 0.78);
 	border-top: 1px solid var(--border-primary);
 	display: flex;
 	align-items: center;
@@ -26,17 +25,28 @@ const PlayerContainer = styled.div<{ isVisible: boolean }>`
 	transition: transform 0.3s ease-in-out;
 	z-index: 100;
 	color: var(--player-text);
+
+	/* Match app container corners on bottom edges */
+	border-bottom-left-radius: var(--window-corner-radius);
+	border-bottom-right-radius: var(--window-corner-radius);
+
+	/* Prevent any overflow */
+	overflow: hidden;
 `;
 
 const WaveformContainer = styled.div`
 	flex-grow: 1;
-	height: 70px; // Increased from 60px to accommodate the higher resolution waveform
+	height: 70px;
 	cursor: pointer;
 
-	/* Style the waveform container to be more visually prominent */
-	background: var(--waveform-bg);
+	/* Subtle inset styling - no additional glass (parent provides it) */
+	background: rgba(0, 0, 0, 0.2);
+	border: 1px solid rgba(255, 255, 255, 0.05);
 	border-radius: 8px;
 	padding: 5px;
+
+	/* Subtle inner shadow for depth */
+	box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.3);
 `;
 
 const TimeDisplay = styled.div`
@@ -51,8 +61,6 @@ const TimeDisplay = styled.div`
 
 // --- MAIN COMPONENT ---
 export const AudioPlayer: React.FC = () => {
-	console.log('[PLAYER] Rendering...');
-
 	// Only subscribe to essential state that affects visibility and file loading
 	// Explicitly exclude currentTime to prevent re-renders on time updates
 	const { currentFile, isLoading, isPlaying, isMinimized, volume } =
@@ -125,16 +133,9 @@ export const AudioPlayer: React.FC = () => {
 
 	// Initialize WaveSurfer only once
 	useEffect(() => {
-		console.log('[PLAYER-EFFECT] Initializing WaveSurfer...');
-
 		if (!waveformRef.current) {
-			console.log(
-				'[PLAYER-EFFECT] waveformRef.current is null, cannot initialize WaveSurfer'
-			);
 			return;
 		}
-
-		console.log('[PLAYER-EFFECT] Creating WaveSurfer instance...');
 
 		// Get CSS variable values for WaveSurfer colors
 		const computedStyle = getComputedStyle(document.documentElement);
@@ -170,25 +171,19 @@ export const AudioPlayer: React.FC = () => {
 		// Set initial volume
 		const initialVolume = useStore.getState().audioPlayer.volume;
 		ws.setVolume(initialVolume);
-		console.log('[PLAYER-EFFECT] Set initial volume to:', initialVolume);
-
-		console.log('[PLAYER-EFFECT] WaveSurfer instance created:', !!ws);
 
 		// Event listeners with v7 optimizations
 		ws.on('ready', () => {
-			console.log('[PLAYER-WAVESURFER] Ready');
 			setWaveformReady(true);
 
 			// Set duration when waveform is ready
 			const duration = ws.getDuration();
 			useStore.getState().setDuration(duration);
-			console.log('[PLAYER-WAVESURFER] Duration set:', duration);
 
 			// Update time display with initial values
 			updateTimeDisplay(0);
 
 			if (playOnReadyRef.current) {
-				console.log('[PLAYER-WAVESURFER] Auto-playing on ready');
 				ws.play();
 				playOnReadyRef.current = false;
 			}
@@ -196,7 +191,6 @@ export const AudioPlayer: React.FC = () => {
 
 		// Click-to-seek functionality
 		ws.on('interaction', () => {
-			console.log('[PLAYER-WAVESURFER] Waveform clicked for seeking');
 			// WaveSurfer automatically handles seeking on click in v7
 		});
 
@@ -212,7 +206,6 @@ export const AudioPlayer: React.FC = () => {
 		});
 
 		ws.on('finish', () => {
-			console.log('[PLAYER-WAVESURFER] Finished playing');
 			stopAudio();
 			playOnReadyRef.current = false;
 		});
@@ -222,22 +215,12 @@ export const AudioPlayer: React.FC = () => {
 			playOnReadyRef.current = false;
 		});
 
-		// v7 loading events
-		ws.on('loading', (percent) => {
-			console.log('[PLAYER-WAVESURFER] Loading:', percent + '%');
-		});
-
 		// Add click event listener to enable seeking by clicking on waveform
 		ws.on('click', (relativeX) => {
-			console.log('[PLAYER-WAVESURFER] Clicked at position:', relativeX);
-			const duration = ws.getDuration();
-			const seekTime = relativeX * duration;
-			console.log('[PLAYER-WAVESURFER] Seeking to:', seekTime);
 			ws.seekTo(relativeX);
 		});
 
 		return () => {
-			console.log('[PLAYER-EFFECT] Destroying WaveSurfer...');
 			ws.destroy();
 			wavesurferRef.current = null;
 			// Clean up global references
@@ -248,15 +231,8 @@ export const AudioPlayer: React.FC = () => {
 
 	// Handle file loading
 	useEffect(() => {
-		console.log('[PLAYER-EFFECT] File/loading state changed.', {
-			fileName: currentFile?.filename,
-			isLoading,
-			isPlaying,
-		});
-
 		// Skip if same file is already loaded
 		if (currentFile && currentFilePathRef.current === currentFile.filePath) {
-			console.log('[PLAYER-EFFECT] Same file already loaded, skipping');
 			return;
 		}
 
@@ -264,47 +240,26 @@ export const AudioPlayer: React.FC = () => {
 			const ws = wavesurferRef.current;
 
 			if (!ws) {
-				console.log('[PLAYER-EFFECT] WaveSurfer not available');
 				return;
 			}
 
 			const audioData = getAudioDataFromCache(currentFile.filePath);
 
-			console.log('[PLAYER-EFFECT] Checking audio data:', {
-				hasWaveSurfer: !!ws,
-				hasAudioData: !!audioData,
-				audioDataSize: audioData ? audioData.byteLength : 0,
-				isPlaying,
-				filePath: currentFile.filePath,
-			});
-
 			if (audioData) {
-				console.log(
-					'[PLAYER-EFFECT] Loading blob... Audio data size:',
-					audioData.byteLength
-				);
-
 				// Reset waveform ready state
 				setWaveformReady(false);
 
 				if (isPlaying) {
 					playOnReadyRef.current = true;
-					console.log('[PLAYER-EFFECT] Set playOnReady = true');
 				}
 
 				const blob = new Blob([audioData], { type: 'audio/wav' });
 				const url = URL.createObjectURL(blob);
-				console.log('[PLAYER-EFFECT] Created blob URL, calling ws.load()');
 
 				// Update the current file reference
 				currentFilePathRef.current = currentFile.filePath;
 
 				ws.load(url);
-			} else {
-				console.log(
-					'[PLAYER-EFFECT] Audio data not found in cache for:',
-					currentFile.filePath
-				);
 			}
 		}
 	}, [
@@ -320,10 +275,8 @@ export const AudioPlayer: React.FC = () => {
 		const ws = wavesurferRef.current;
 		if (ws && isWaveformReadyRef.current) {
 			if (isPlaying) {
-				console.log('[PLAYER-EFFECT] Playing audio');
 				ws.play();
 			} else {
-				console.log('[PLAYER-EFFECT] Pausing audio');
 				ws.pause();
 			}
 		}
@@ -333,7 +286,6 @@ export const AudioPlayer: React.FC = () => {
 	useEffect(() => {
 		const ws = wavesurferRef.current;
 		if (ws) {
-			console.log('[PLAYER-EFFECT] Setting volume to:', volume);
 			ws.setVolume(volume);
 		}
 	}, [volume]);

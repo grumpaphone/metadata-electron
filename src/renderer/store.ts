@@ -271,28 +271,15 @@ export const useStore = createWithEqualityFn<AppState>(
 		setIsLoading: (isLoading) => set({ isLoading }),
 
 		setSearch: (searchText, searchField) => {
-			console.log('[STORE] setSearch called with:', {
-				searchText,
-				searchField,
-			});
 			const state = get();
 			const newSearchField = searchField || state.searchField;
 			const lowercasedFilter = searchText.toLowerCase();
-
-			console.log('[STORE] Search config:', {
-				searchText,
-				newSearchField,
-				lowercasedFilter,
-				currentSearchField: state.searchField,
-			});
-			console.log('[STORE] Total files to search:', state.files.length);
 
 			const filteredFiles = state.files.filter((file) => {
 				if (!lowercasedFilter) return true;
 
 				// If searching all fields, check multiple fields
 				if (newSearchField === 'all') {
-					console.log('[STORE] Searching all fields for file:', file.filename);
 					const searchableFields = [
 						'filename',
 						'show',
@@ -302,46 +289,20 @@ export const useStore = createWithEqualityFn<AppState>(
 						'take',
 						'ixmlNote',
 					];
-					const result = searchableFields.some((field) => {
+					return searchableFields.some((field) => {
 						const fieldValue = file[field as keyof Wavedata] as string;
-						const fieldContainsSearch = String(fieldValue || '')
+						return String(fieldValue || '')
 							.toLowerCase()
 							.includes(lowercasedFilter);
-						if (fieldContainsSearch) {
-							console.log(
-								`[STORE] Match found in field '${field}':`,
-								fieldValue
-							);
-						}
-						return fieldContainsSearch;
 					});
-					console.log('[STORE] All fields search result:', result);
-					return result;
 				}
 
 				// Otherwise search specific field
-				console.log(
-					`[STORE] Searching specific field '${newSearchField}' for file:`,
-					file.filename
-				);
 				const fieldValue = file[newSearchField as keyof Wavedata] as string;
-				const result = String(fieldValue || '')
+				return String(fieldValue || '')
 					.toLowerCase()
 					.includes(lowercasedFilter);
-				console.log(`[STORE] Field '${newSearchField}' value:`, fieldValue);
-				console.log(`[STORE] Field search result:`, result);
-				return result;
 			});
-
-			console.log(
-				'[STORE] Filtered files result:',
-				filteredFiles.length,
-				'files'
-			);
-			console.log(
-				'[STORE] First few matches:',
-				filteredFiles.slice(0, 3).map((f) => f.filename)
-			);
 
 			set({
 				searchText,
@@ -352,12 +313,6 @@ export const useStore = createWithEqualityFn<AppState>(
 
 		removeFiles: (indices) =>
 			set((state) => {
-				console.log('[STORE] removeFiles called with indices:', indices);
-				console.log('[STORE] Current files length:', state.files.length);
-				console.log(
-					'[STORE] Files at indices:',
-					indices.map((i) => state.files[i]?.filename || 'undefined')
-				);
 
 				// Get file paths for files being removed (for cache cleanup and audio player)
 				const removedFiles = indices.map((i) => state.files[i]).filter(Boolean);
@@ -726,10 +681,7 @@ export const useStore = createWithEqualityFn<AppState>(
 			try {
 				let audioData = get().audioDataCache.get(file.filePath);
 				if (!audioData) {
-					console.log(`[STORE] Audio not in cache, fetching: ${file.filePath}`);
 					audioData = await window.electronAPI.loadAudioFile(file.filePath);
-				} else {
-					console.log(`[STORE] Audio loaded from cache: ${file.filePath}`);
 				}
 
 				set((state) => {
@@ -881,13 +833,10 @@ export const useStore = createWithEqualityFn<AppState>(
 
 		// Column Order Actions
 		reorderColumns: (fromIndex: number, toIndex: number) => {
-			console.log('[STORE] reorderColumns called:', { fromIndex, toIndex });
 			set((state) => {
-				console.log('[STORE] Current columnOrder:', state.columnOrder);
 				const newOrder = [...state.columnOrder];
 				const [movedColumn] = newOrder.splice(fromIndex, 1);
 				newOrder.splice(toIndex, 0, movedColumn);
-				console.log('[STORE] New columnOrder:', newOrder);
 				return { columnOrder: newOrder };
 			});
 		},

@@ -38,7 +38,6 @@ const VolumeSlider = styled.input`
 `;
 
 export const VolumeControl: React.FC = () => {
-	console.log('[VolumeControl] Rendering...');
 	const { volume } = useStoreWithEqualityFn(
 		useStore,
 		(state) => ({
@@ -50,11 +49,8 @@ export const VolumeControl: React.FC = () => {
 
 	const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
 		const newVolume = parseFloat(e.target.value);
-		console.log('[VolumeControl] Volume changed to:', newVolume);
 		setVolume(newVolume);
 	};
-
-	console.log('[VolumeControl] Current volume:', volume);
 
 	return (
 		<VolumeContainer>
