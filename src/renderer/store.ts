@@ -783,10 +783,8 @@ export const useStore = createWithEqualityFn<AppState>(
 				},
 			})),
 
-		setCurrentTime: (time) =>
-			set((state) => ({
-				audioPlayer: { ...state.audioPlayer, currentTime: time },
-			})),
+        // Avoid frequent store updates that cause re-renders; AudioPlayer updates DOM directly
+        setCurrentTime: (_time) => undefined,
 
 		setVolume: (volume) =>
 			set((state) => ({ audioPlayer: { ...state.audioPlayer, volume } })),

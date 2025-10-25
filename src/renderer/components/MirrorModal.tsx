@@ -6,6 +6,7 @@ import {
 	MirrorOrganizeField,
 	MirrorResult,
 } from '../../types';
+import { VibrancyLayer } from './VibrancyLayer';
 
 // Styled Components
 const ModalOverlay = styled.div`
@@ -14,23 +15,23 @@ const ModalOverlay = styled.div`
 	left: 0;
 	right: 0;
 	bottom: 0;
-	background: rgba(0, 0, 0, 0.7);
+	background: var(--modal-overlay);
 	display: flex;
 	justify-content: center;
 	align-items: center;
 	z-index: 1000;
 `;
 
-const ModalContent = styled.div`
-	background: rgba(30, 30, 40, 0.95);
-	backdrop-filter: blur(20px);
-	border: 1px solid rgba(255, 255, 255, 0.1);
-	border-radius: 12px;
+const ModalContent = styled(VibrancyLayer)`
+	border: 1px solid var(--border-primary);
+	border-radius: 20px;
 	padding: 24px;
 	width: 600px;
 	max-height: 80vh;
 	overflow-y: auto;
-	color: #eee;
+	color: var(--text-primary);
+	box-shadow: 0 28px 60px rgba(8, 16, 32, 0.45),
+		inset 0 1px 0 rgba(255, 255, 255, 0.12);
 `;
 
 const ModalHeader = styled.div`
@@ -38,21 +39,21 @@ const ModalHeader = styled.div`
 	justify-content: space-between;
 	align-items: center;
 	margin-bottom: 24px;
-	border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+	border-bottom: 1px solid var(--border-secondary);
 	padding-bottom: 16px;
 `;
 
 const Title = styled.h2`
 	margin: 0;
-	color: #fff;
+	color: var(--text-primary);
 	font-size: 20px;
 	font-weight: 600;
 `;
 
 const CloseButton = styled.button`
 	background: transparent;
-	border: none;
-	color: #ccc;
+	border: 1px solid transparent;
+	color: var(--text-muted);
 	font-size: 24px;
 	cursor: pointer;
 	padding: 0;
@@ -61,11 +62,12 @@ const CloseButton = styled.button`
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	border-radius: 4px;
+	border-radius: 8px;
+	transition: all 0.2s ease;
 
 	&:hover {
-		background: rgba(255, 255, 255, 0.1);
-		color: #fff;
+		background: rgba(140, 183, 255, 0.16);
+		color: var(--accent-primary);
 	}
 `;
 
@@ -77,7 +79,7 @@ const SectionTitle = styled.h3`
 	margin: 0 0 12px 0;
 	font-size: 16px;
 	font-weight: 500;
-	color: #fff;
+	color: var(--text-secondary);
 `;
 
 const PathSelector = styled.div`
@@ -89,21 +91,23 @@ const PathSelector = styled.div`
 
 const PathInput = styled.input`
 	flex: 1;
-	background: rgba(0, 0, 0, 0.2);
-	border: 1px solid rgba(255, 255, 255, 0.1);
-	color: #eee;
-	padding: 10px 12px;
-	border-radius: 6px;
+	background: var(--input-bg);
+	border: 1px solid rgba(255, 255, 255, 0.18);
+	color: var(--text-primary);
+	padding: 10px 14px;
+	border-radius: 12px;
 	font-size: 14px;
+	backdrop-filter: var(--glass-backdrop);
+	box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25);
 
 	&:focus {
 		outline: none;
-		border-color: #007aff;
+		border-color: rgba(140, 183, 255, 0.6);
 	}
 
 	&:read-only {
-		background: rgba(0, 0, 0, 0.1);
-		color: #999;
+		background: rgba(255, 255, 255, 0.08);
+		color: var(--text-muted);
 		cursor: not-allowed;
 	}
 `;
@@ -111,35 +115,43 @@ const PathInput = styled.input`
 const Button = styled.button<{ variant?: 'primary' | 'secondary' | 'danger' }>`
 	background: ${(props) =>
 		props.variant === 'danger'
-			? '#dc3545'
+			? 'linear-gradient(145deg, rgba(255, 97, 97, 0.85) 0%, rgba(220, 53, 69, 0.82) 100%)'
 			: props.variant === 'secondary'
-			? 'transparent'
-			: '#007aff'};
-	color: white;
+			? 'linear-gradient(145deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.08) 100%)'
+			: 'linear-gradient(145deg, rgba(82, 156, 255, 0.95) 0%, rgba(40, 116, 255, 0.92) 100%)'};
+	color: ${(props) =>
+		props.variant === 'secondary' ? 'var(--text-secondary)' : '#fff'};
 	border: ${(props) =>
 		props.variant === 'secondary'
-			? '1px solid rgba(255, 255, 255, 0.2)'
-			: 'none'};
+			? '1px solid rgba(255, 255, 255, 0.18)'
+			: '1px solid rgba(255, 255, 255, 0.24)'};
 	padding: 8px 16px;
-	border-radius: 6px;
+	border-radius: 12px;
 	cursor: pointer;
 	font-size: 14px;
 	font-weight: 500;
 	transition: all 0.2s ease;
+	box-shadow: ${(props) =>
+		props.variant === 'secondary'
+			? 'inset 0 1px 0 rgba(255, 255, 255, 0.2)'
+			: '0 12px 24px rgba(32, 78, 145, 0.28)'};
 
 	&:hover {
 		background: ${(props) =>
 			props.variant === 'danger'
-				? '#c82333'
+				? 'linear-gradient(145deg, rgba(255, 112, 112, 0.9) 0%, rgba(220, 53, 69, 0.9) 100%)'
 				: props.variant === 'secondary'
-				? 'rgba(255, 255, 255, 0.1)'
-				: '#0056b3'};
+				? 'linear-gradient(145deg, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0.12) 100%)'
+				: 'linear-gradient(145deg, rgba(112, 178, 255, 0.98) 0%, rgba(56, 129, 255, 0.96) 100%)'};
+		transform: translateY(-1px);
 	}
 
 	&:disabled {
-		background: #444;
-		color: #888;
+		background: rgba(255, 255, 255, 0.1);
+		color: var(--text-muted);
 		cursor: not-allowed;
+		box-shadow: none;
+		transform: none;
 	}
 `;
 
@@ -149,34 +161,36 @@ const OrganizeLevel = styled.div`
 	align-items: center;
 	margin-bottom: 8px;
 	padding: 12px;
-	background: rgba(0, 0, 0, 0.2);
-	border-radius: 8px;
-	border: 1px solid rgba(255, 255, 255, 0.1);
+	background: rgba(255, 255, 255, 0.06);
+	border-radius: 12px;
+	border: 1px solid rgba(255, 255, 255, 0.12);
+	box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
 `;
 
 const Select = styled.select`
-	background: rgba(0, 0, 0, 0.3);
-	border: 1px solid rgba(255, 255, 255, 0.1);
-	color: #eee;
+	background: rgba(255, 255, 255, 0.08);
+	border: 1px solid rgba(255, 255, 255, 0.16);
+	color: var(--text-primary);
 	padding: 8px 12px;
-	border-radius: 4px;
+	border-radius: 10px;
 	font-size: 14px;
 	min-width: 140px;
+	backdrop-filter: var(--glass-backdrop);
 
 	&:focus {
 		outline: none;
-		border-color: #007aff;
+		border-color: rgba(140, 183, 255, 0.6);
 	}
 
 	option {
-		background: #333;
-		color: #eee;
+		background: rgba(14, 28, 56, 0.92);
+		color: var(--text-primary);
 	}
 `;
 
 const LevelNumber = styled.div`
-	background: #007aff;
-	color: white;
+	background: rgba(120, 173, 255, 0.9);
+	color: #03122c;
 	width: 24px;
 	height: 24px;
 	border-radius: 50%;
@@ -199,23 +213,23 @@ const ModalFooter = styled.div`
 	justify-content: flex-end;
 	margin-top: 24px;
 	padding-top: 16px;
-	border-top: 1px solid rgba(255, 255, 255, 0.1);
+	border-top: 1px solid var(--border-secondary);
 `;
 
 const FileCountInfo = styled.div`
 	font-size: 14px;
-	color: #ccc;
+	color: var(--text-muted);
 	margin-bottom: 16px;
 `;
 
 const PreviewPath = styled.div`
-	background: rgba(0, 0, 0, 0.3);
-	border: 1px solid rgba(255, 255, 255, 0.1);
-	border-radius: 6px;
+	background: rgba(255, 255, 255, 0.08);
+	border: 1px solid rgba(255, 255, 255, 0.15);
+	border-radius: 12px;
 	padding: 12px;
 	font-family: 'Monaco', 'Menlo', monospace;
 	font-size: 12px;
-	color: #ccc;
+	color: var(--text-secondary);
 	margin-top: 8px;
 	word-break: break-all;
 `;
@@ -223,18 +237,19 @@ const PreviewPath = styled.div`
 const ResultSection = styled.div`
 	margin-top: 16px;
 	padding: 16px;
-	border-radius: 8px;
-	background: rgba(0, 0, 0, 0.2);
+	border-radius: 12px;
+	background: rgba(255, 255, 255, 0.08);
+	border: 1px solid rgba(255, 255, 255, 0.12);
 `;
 
 const SuccessMessage = styled.div`
-	color: #28a745;
+	color: rgba(46, 204, 113, 0.88);
 	font-weight: 500;
 	margin-bottom: 8px;
 `;
 
 const ErrorMessage = styled.div`
-	color: #dc3545;
+	color: rgba(255, 99, 132, 0.92);
 	font-weight: 500;
 	margin-bottom: 8px;
 `;
@@ -242,7 +257,7 @@ const ErrorMessage = styled.div`
 const ErrorList = styled.ul`
 	margin: 8px 0;
 	padding-left: 20px;
-	color: #ff6b6b;
+	color: rgba(255, 120, 140, 0.9);
 	font-size: 13px;
 `;
 
@@ -395,7 +410,7 @@ export const MirrorModal: React.FC<MirrorModalProps> = ({
 
 	return (
 		<ModalOverlay onClick={onClose}>
-			<ModalContent onClick={(e) => e.stopPropagation()}>
+			<ModalContent intensity='strong' onClick={(e) => e.stopPropagation()}>
 				<ModalHeader>
 					<Title>Mirror Files</Title>
 					<CloseButton onClick={onClose}>×</CloseButton>

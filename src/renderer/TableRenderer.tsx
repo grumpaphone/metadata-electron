@@ -11,13 +11,15 @@ import { Global } from '@emotion/react';
 import { useStoreWithEqualityFn } from 'zustand/traditional';
 import { shallow } from 'zustand/shallow';
 import { useStore, AppState } from './store';
-import { Wavedata, BWFMetadata, AgentStatus } from '../types';
+import { Wavedata, AgentStatus } from '../types';
 
 import { ErrorDialog } from './components/ErrorDialog';
 import { FilenameMappingModal } from './components/FilenameMappingModal';
 import { AudioPlayer } from './components/AudioPlayer';
 import { MirrorModal } from './components/MirrorModal';
 import { SettingsModal } from './components/SettingsModal';
+// throttle utility not used; remove import to reduce bundle size
+import { WindowControls } from './components/WindowControls';
 
 // --- UTILITIES ---
 const basename = (path: string) => path.split(/[\\/]/).pop() || '';
@@ -55,27 +57,34 @@ const AppContainer = styled.div`
 	display: flex;
 	flex-direction: column;
 	height: 100vh;
-	background: var(--bg-primary);
-	backdrop-filter: blur(20px);
-	border: 1px solid var(--border-primary);
+
+	/* Apple Liquid Glass: SOLID backgrounds like native macOS apps */
+	background: var(--bg-primary); // Solid color, NO transparency
 	color: var(--text-primary);
-	font-family: 'Inter', sans-serif;
+	font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
 	font-size: var(--font-size-base);
 
-	position: relative;
+	/* Corner radius matches native macOS */
+	border-radius: var(--window-corner-radius);
+	overflow: hidden;
 `;
 
 const UnifiedTopBar = styled.div`
 	display: flex;
 	align-items: center;
 	padding: 8px 12px;
-	padding-left: 85px; /* Space for custom positioned traffic lights */
-	background: var(--bg-secondary);
-	backdrop-filter: blur(10px);
-	border-bottom: 1px solid var(--border-primary);
+	padding-left: 12px;
 	gap: 12px;
-	height: 44px; /* Fixed height for proper traffic light centering */
+	height: 52px; /* Standard macOS toolbar height */
 	-webkit-app-region: drag;
+
+	/* Apple Liquid Glass: subtle material effect on navigation ONLY */
+	background: var(--bg-secondary);
+	backdrop-filter: var(--glass-navigation);
+	border-bottom: 1px solid var(--border-primary);
+
+	/* Minimal shadow like native macOS toolbars */
+	box-shadow: 0 1px 0 rgba(0, 0, 0, 0.05);
 
 	/* Make buttons and inputs non-draggable */
 	button,
@@ -89,10 +98,17 @@ const GlobalStyles = () => (
 	<Global
 		styles={`
       @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap');
+      :root {
+        /* Window chrome corner radius to match modern macOS apps (adjust as needed) */
+        --window-corner-radius: 26px; /* 26pt corners */
+      }
       body, html {
         margin: 0;
         padding: 0;
         overflow: hidden;
+        background: #0b1420; /* opaque base */
+        color: var(--text-primary);
+        -webkit-font-smoothing: antialiased;
       }
       
       /* Unified scrollbar styles */
@@ -119,41 +135,90 @@ const GlobalStyles = () => (
       ::-webkit-scrollbar-corner {
         background: rgba(0, 0, 0, 0.1);
       }
+
+      body.reduce-motion *,
+      body.reduce-motion *::before,
+      body.reduce-motion *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+      }
+
+      body.reduce-transparency * {
+        backdrop-filter: none !important;
+      }
     `}
 	/>
 );
 
 const Button = styled.button`
-	background: var(--accent-primary);
-	color: white;
-	border: 1px solid transparent;
-	padding: 8px 15px;
-	border-radius: 6px;
-	cursor: pointer;
-	font-size: 14px;
-	font-weight: 500;
-	transition: background 0.2s ease;
-	display: flex;
+	/* Apple SF Pro system font (actual macOS font stack) */
+	font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text',
+		'SF Pro Display', sans-serif;
+	font-size: 13px; /* Standard macOS body text size */
+	font-weight: 510; /* Apple's default medium weight */
+	line-height: 1.23077; /* Apple's text line-height ratio */
+	letter-spacing: -0.08px; /* SF Pro tracking */
+
+	/* Apple button styling - exact specs */
+	display: inline-flex;
 	align-items: center;
 	justify-content: center;
+	gap: 6px;
+	padding: 0 12px;
 	min-width: 44px;
-	box-sizing: border-box;
-	line-height: 1.2;
-	height: 36px;
+	height: 22px; /* Standard macOS button height */
 
-	&:hover {
-		background: var(--accent-hover);
+	/* Apple's system fill colors */
+	background: var(--fill-tertiary);
+	color: var(--text-primary);
+	border: 0.5px solid var(--border-secondary);
+	border-radius: 5px; /* Apple's standard button radius */
+	cursor: pointer;
+
+	/* Minimal shadow - Apple style */
+	box-shadow: 0 0.5px 1px rgba(0, 0, 0, 0.12);
+
+	/* Smooth transitions */
+	transition: background 0.1s ease, box-shadow 0.1s ease;
+
+	/* Hover state */
+	&:hover:not(:disabled) {
+		background: var(--fill-secondary);
+		box-shadow: 0 0.5px 2px rgba(0, 0, 0, 0.16);
 	}
+
+	/* Active/pressed state */
+	&:active:not(:disabled) {
+		background: var(--fill-primary);
+		box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.12);
+		transform: translateY(0.5px);
+	}
+
+	/* Focus state - Apple's blue ring */
+	&:focus-visible {
+		outline: none;
+		box-shadow: 0 0 0 4px rgba(10, 132, 255, 0.25);
+	}
+
+	/* Disabled state */
 	&:disabled {
-		background: var(--bg-tertiary);
-		color: var(--text-muted);
+		opacity: 0.35; /* Apple's disabled opacity */
 		cursor: not-allowed;
 	}
 
-	/* Special styling for folder button */
+	/* Respect reduced motion */
+	body.reduce-motion & {
+		transition: none;
+		transform: none !important;
+	}
+
+	/* Special styling for icon buttons */
 	&.folder-button {
 		font-size: 16px;
-		padding: 8px 12px;
+		padding: 0 8px;
+		min-width: 28px;
 	}
 `;
 
@@ -185,6 +250,13 @@ const LeftSection = styled.div`
 	display: flex;
 	gap: 8px;
 	align-items: center;
+	/* Only this area should be draggable except buttons */
+	-webkit-app-region: drag;
+
+	/* Exclude buttons from drag to make them clickable */
+	button {
+		-webkit-app-region: no-drag;
+	}
 `;
 
 const MiddleSection = styled.div`
@@ -212,9 +284,9 @@ const DragOverlay = styled.div`
 	left: 0;
 	right: 0;
 	bottom: 0;
-	background: rgba(0, 123, 255, 0.1);
-	backdrop-filter: blur(4px);
-	border: 3px dashed #007bff;
+	background: rgba(90, 150, 255, 0.14);
+	backdrop-filter: var(--glass-backdrop);
+	border: 2px dashed rgba(120, 173, 255, 0.6);
 	border-radius: 12px;
 	display: flex;
 	align-items: center;
@@ -225,32 +297,47 @@ const DragOverlay = styled.div`
 
 	@keyframes pulseGlow {
 		0% {
-			background: rgba(0, 123, 255, 0.1);
-			border-color: #007bff;
+			background: rgba(90, 150, 255, 0.12);
+			border-color: rgba(120, 173, 255, 0.68);
 		}
 		100% {
-			background: rgba(0, 123, 255, 0.2);
-			border-color: #0099ff;
+			background: rgba(90, 150, 255, 0.2);
+			border-color: rgba(146, 194, 255, 0.9);
 		}
 	}
 `;
 
 const DragMessage = styled.div`
-	background: rgba(0, 123, 255, 0.9);
-	color: white;
-	padding: 20px 30px;
-	border-radius: 12px;
+	background: rgba(15, 28, 52, 0.85);
+	color: var(--text-primary);
+	padding: 24px 36px;
+	border-radius: 16px;
 	font-size: 18px;
 	font-weight: 600;
 	text-align: center;
-	box-shadow: 0 8px 32px rgba(0, 123, 255, 0.3);
-	backdrop-filter: blur(10px);
-	border: 1px solid rgba(255, 255, 255, 0.2);
+	box-shadow: 0 24px 48px rgba(8, 20, 42, 0.5);
+	backdrop-filter: var(--glass-backdrop-strong);
+	border: 1px solid rgba(120, 173, 255, 0.4);
+
+	/* Single top highlight for depth */
+	position: relative;
+
+	&::after {
+		content: '';
+		position: absolute;
+		top: 0;
+		left: 0;
+		right: 0;
+		height: 1px;
+		background: rgba(255, 255, 255, 0.15);
+		border-radius: 16px 16px 0 0;
+	}
 
 	.icon {
 		font-size: 48px;
-		margin-bottom: 10px;
+		margin-bottom: 12px;
 		display: block;
+		filter: drop-shadow(0 2px 8px rgba(82, 156, 255, 0.3));
 	}
 
 	.text {
@@ -259,78 +346,130 @@ const DragMessage = styled.div`
 	}
 
 	.subtext {
-		font-size: 14px;
-		opacity: 0.8;
+		font-size: 13px;
+		opacity: 0.7;
 		font-weight: 400;
+		color: var(--text-secondary);
 	}
 `;
 
 const Input = styled.input`
-	background: var(--input-bg);
-	border: 1px solid var(--border-primary);
-	color: var(--text-primary);
-	padding: 8px 15px;
-	border-radius: 6px;
-	font-size: 14px;
-	transition: border-color 0.2s ease;
-	box-sizing: border-box;
-	line-height: 1.2;
-	height: 36px;
+	/* Apple SF Pro system font */
+	font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
+	font-size: 13px;
+	font-weight: 400; /* Regular weight for input text */
+	line-height: 1.23077;
+	letter-spacing: -0.08px;
 
+	/* Apple input field styling - exact specs */
+	display: block;
+	width: 100%;
+	height: 22px;
+	padding: 0 7px;
+
+	/* Apple's system fill for inputs */
+	background: var(--input-bg);
+	color: var(--text-primary);
+	border: 0.5px solid var(--input-border);
+	border-radius: 5px;
+
+	/* Inset shadow like native macOS inputs */
+	box-shadow: inset 0 0.5px 1px rgba(0, 0, 0, 0.08);
+
+	/* Smooth transitions */
+	transition: border-color 0.1s ease, box-shadow 0.1s ease;
+
+	/* Hover state */
+	&:hover:not(:focus):not(:disabled) {
+		border-color: var(--border-primary);
+	}
+
+	/* Focus state - Apple's blue ring */
 	&:focus {
 		outline: none;
 		border-color: var(--accent-primary);
+		box-shadow: 0 0 0 4px rgba(10, 132, 255, 0.25),
+			inset 0 0.5px 1px rgba(0, 0, 0, 0.08);
+	}
+
+	/* Placeholder - Apple's quaternary label color */
+	&::placeholder {
+		color: var(--text-muted);
+		opacity: 1; /* Already using rgba */
+	}
+
+	/* Disabled state */
+	&:disabled {
+		opacity: 0.35;
+		cursor: not-allowed;
+	}
+
+	/* Respect reduced motion */
+	body.reduce-motion & {
+		transition: none;
 	}
 `;
 
 const DropdownItem = styled.div<{ isSelected?: boolean }>`
-	padding: 14px 18px;
+	padding: 12px 18px;
 	cursor: pointer;
 	font-size: 13px;
 	font-weight: 500;
 	color: ${(props) =>
-		props.isSelected ? 'var(--accent-primary)' : 'var(--dropdown-item-text)'};
-	transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-	border-bottom: 1px solid var(--border-secondary);
+		props.isSelected ? 'var(--accent-primary)' : 'var(--text-primary)'};
+	transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease;
 	position: relative;
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
 	background: ${(props) =>
-		props.isSelected ? 'var(--table-row-selected)' : 'transparent'};
+		props.isSelected ? 'rgba(82, 156, 255, 0.1)' : 'transparent'};
 	user-select: none;
 
-	&:first-child {
+	/* Subtle separator between items */
+	&:not(:last-of-type)::after {
+		content: '';
+		position: absolute;
+		bottom: 0;
+		left: 12px;
+		right: 12px;
+		height: 1px;
+		background: rgba(255, 255, 255, 0.06);
+	}
+
+	/* Match parent border-radius */
+	&:first-of-type {
 		border-top-left-radius: 12px;
 		border-top-right-radius: 12px;
 	}
 
-	&:last-child {
-		border-bottom: none;
+	&:last-of-type {
 		border-bottom-left-radius: 12px;
 		border-bottom-right-radius: 12px;
 	}
 
 	&:hover {
-		background: var(--dropdown-item-hover);
+		background: rgba(120, 173, 255, 0.12);
 		color: var(--accent-primary);
-		transform: translateX(3px);
-		box-shadow: inset 3px 0 0 var(--accent-primary);
+		transform: translateX(2px);
 	}
 
 	&:active {
-		background: var(--table-row-selected);
-		transform: translateX(1px);
+		background: rgba(120, 173, 255, 0.18);
+		transform: translateX(0);
 	}
 
+	/* Selected indicator checkmark */
 	${(props) =>
 		props.isSelected &&
 		`
-		&::after {
+		&::before {
 			content: '✓';
-			font-size: 12px;
+			position: absolute;
+			right: 18px;
+			font-size: 14px;
 			color: var(--accent-primary);
-			font-weight: 600;
+			font-weight: 700;
 		}
 	`}
 `;
@@ -344,6 +483,8 @@ const SortIndicator = styled.span`
 const TableContainer = styled.div`
 	flex-grow: 1;
 	overflow: auto;
+	/* Apple Liquid Glass: SOLID background - content is primary */
+	background: var(--bg-primary);
 `;
 
 const Table = styled.table`
@@ -352,20 +493,46 @@ const Table = styled.table`
 	table-layout: fixed;
 `;
 
-const TableHeader = styled.th`
-	background: var(--bg-tertiary);
-	padding: 6px 8px;
+const TableHeader = styled.th<{
+	isScrolled?: boolean;
+	scrollProgress?: number;
+}>`
+	/* Apple SF Pro system font for table headers */
+	font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
+	font-size: 11px; /* Apple's standard caption/header size */
+	font-weight: 590; /* Apple's semibold weight */
+	line-height: 1.36364;
+	letter-spacing: 0.06px; /* SF Pro caption tracking */
+	text-transform: uppercase;
+
+	/* Apple table header styling */
+	background: var(--bg-secondary);
+	color: var(--text-secondary);
+	padding: 4px 8px;
+	height: 24px;
 	text-align: left;
 	cursor: pointer;
+	user-select: none;
+
+	/* Sticky positioning */
 	position: sticky;
 	top: 0;
-	user-select: none;
-	font-size: var(--font-size-base);
-	font-weight: 500;
-	height: 28px;
-	white-space: nowrap;
-	overflow: hidden;
-	color: var(--text-secondary);
+	z-index: 10;
+
+	/* Clean separator line */
+	border-bottom: 0.5px solid var(--border-primary);
+
+	/* Subtle shadow when scrolled (like native macOS tables) */
+	box-shadow: ${(props) =>
+		props.isScrolled ? '0 1px 3px rgba(0, 0, 0, 0.12)' : 'none'};
+
+	/* Smooth transition for shadow */
+	transition: box-shadow 0.2s ease;
+
+	/* Respect reduced motion */
+	body.reduce-motion & {
+		transition: none;
+	}
 `;
 
 const TableRow = styled.tr<{ selected?: boolean }>`
@@ -376,6 +543,7 @@ const TableRow = styled.tr<{ selected?: boolean }>`
 	cursor: pointer;
 	&:hover {
 		background: var(--table-row-hover);
+		box-shadow: inset 0 0 0 1px rgba(122, 175, 255, 0.15);
 	}
 `;
 
@@ -443,21 +611,8 @@ const SearchInput = styled(Input)`
 	padding-right: 40px;
 	box-sizing: border-box;
 	background: var(--input-bg);
-	border: 1px solid var(--border-primary);
-	backdrop-filter: blur(10px);
-	transition: all 0.2s ease;
+	border: 1px solid rgba(255, 255, 255, 0.16);
 	color: var(--text-primary);
-
-	&:focus {
-		outline: none;
-		border-color: var(--accent-primary);
-		background: var(--input-bg);
-		box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
-	}
-
-	&:hover {
-		border-color: var(--border-primary);
-	}
 `;
 
 const DropdownArrow = styled.div<{ isOpen: boolean }>`
@@ -471,10 +626,10 @@ const DropdownArrow = styled.div<{ isOpen: boolean }>`
 	align-items: center;
 	justify-content: center;
 	z-index: 1001;
-	border-radius: 6px;
+	border-radius: 8px;
 	transition: all 0.2s ease;
 	background: ${(props) =>
-		props.isOpen ? 'var(--table-row-selected)' : 'transparent'};
+		props.isOpen ? 'rgba(140, 183, 255, 0.16)' : 'transparent'};
 	user-select: none;
 
 	&:hover {
@@ -507,17 +662,29 @@ const DropdownMenu = styled.div<{ top: number; left: number }>`
 	top: ${(props) => props.top}px;
 	left: ${(props) => props.left}px;
 	background: var(--dropdown-bg);
-	backdrop-filter: blur(25px);
+	backdrop-filter: var(--glass-backdrop-strong);
 	border: 1px solid var(--dropdown-border);
 	border-radius: 12px;
-	box-shadow: 0 25px 50px rgba(0, 0, 0, 0.3), 0 12px 24px rgba(0, 0, 0, 0.2),
-		inset 0 1px 0 var(--border-primary), 0 0 0 1px var(--border-secondary);
+	box-shadow: 0 28px 60px rgba(10, 18, 36, 0.35);
 	z-index: 999999;
 	min-width: 160px;
 	overflow: hidden;
 	isolation: isolate;
 	animation: dropdownFadeIn 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 
+	/* Subtle top highlight (single, not inset + outer) */
+	&::after {
+		content: '';
+		position: absolute;
+		top: 0;
+		left: 0;
+		right: 0;
+		height: 1px;
+		background: rgba(255, 255, 255, 0.12);
+		pointer-events: none;
+	}
+
+	/* Arrow indicator (removed duplicate backdrop-filter) */
 	&::before {
 		content: '';
 		position: absolute;
@@ -530,7 +697,6 @@ const DropdownMenu = styled.div<{ top: number; left: number }>`
 		border-bottom: none;
 		border-right: none;
 		transform: rotate(45deg);
-		backdrop-filter: blur(25px);
 	}
 
 	@keyframes dropdownFadeIn {
@@ -557,21 +723,23 @@ const PortalTooltip = styled.div<{ top: number; left: number }>`
 	font-weight: 500;
 	border-radius: 6px;
 	white-space: nowrap;
-	z-index: 1000000; /* Higher than dropdown menu (999999) */
-	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-	backdrop-filter: blur(4px);
-	pointer-events: none; /* Prevent tooltip from interfering with mouse events */
+	z-index: 1000000;
+	box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4);
+	backdrop-filter: var(--glass-backdrop-light);
+	pointer-events: none;
 	animation: tooltipFadeIn 0.2s ease;
 	border: 1px solid var(--border-primary);
 
+	/* Single arrow (simplified) */
 	&::before {
 		content: '';
 		position: absolute;
 		bottom: 100%;
 		left: 50%;
 		transform: translateX(-50%);
-		border: 4px solid transparent;
+		border: 5px solid transparent;
 		border-bottom-color: var(--bg-tertiary);
+		filter: drop-shadow(0 -1px 1px rgba(0, 0, 0, 0.2));
 	}
 
 	@keyframes tooltipFadeIn {
@@ -591,34 +759,56 @@ const ContextMenu = styled.div<{ top: number; left: number }>`
 	position: fixed;
 	top: ${(props) => props.top}px;
 	left: ${(props) => props.left}px;
-	background: rgba(30, 30, 40, 0.95);
-	backdrop-filter: blur(20px);
-	border: 1px solid rgba(255, 255, 255, 0.1);
-	border-radius: 8px;
+	background: var(--bg-glass);
+	backdrop-filter: var(--glass-backdrop-strong);
+	border: 1px solid var(--border-primary);
+	border-radius: 10px;
 	padding: 4px 0;
 	min-width: 120px;
 	z-index: 1000;
-	box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+	overflow: hidden;
+	box-shadow: 0 20px 40px rgba(8, 16, 32, 0.4);
+
+	/* Subtle top highlight for depth */
+	&::after {
+		content: '';
+		position: absolute;
+		top: 0;
+		left: 0;
+		right: 0;
+		height: 1px;
+		background: rgba(255, 255, 255, 0.1);
+		pointer-events: none;
+	}
 `;
 
 const ContextMenuItem = styled.div<{ danger?: boolean }>`
-	padding: 8px 16px;
-	color: ${(props) => (props.danger ? '#ff6b6b' : '#e2e8f0')};
+	padding: 10px 16px;
+	color: ${(props) => (props.danger ? '#ff6b6b' : 'var(--text-primary)')};
 	cursor: pointer;
-	font-size: 12px;
-	transition: background-color 0.2s ease;
+	font-size: 13px;
+	font-weight: 500;
+	transition: background 0.15s ease, color 0.15s ease;
+	position: relative;
 
 	&:hover {
 		background: ${(props) =>
-			props.danger ? 'rgba(255, 107, 107, 0.1)' : 'rgba(255, 255, 255, 0.05)'};
+			props.danger ? 'rgba(255, 107, 107, 0.15)' : 'rgba(120, 173, 255, 0.12)'};
+		color: ${(props) => (props.danger ? '#ff8888' : 'var(--accent-primary)')};
 	}
 
-	&:first-child {
-		border-radius: 6px 6px 0 0;
+	&:active {
+		background: ${(props) =>
+			props.danger ? 'rgba(255, 107, 107, 0.2)' : 'rgba(120, 173, 255, 0.18)'};
 	}
 
-	&:last-child {
-		border-radius: 0 0 6px 6px;
+	/* Match parent border-radius on first/last items */
+	&:first-of-type {
+		border-radius: 10px 10px 0 0;
+	}
+
+	&:last-of-type {
+		border-radius: 0 0 10px 10px;
 	}
 `;
 
@@ -786,7 +976,14 @@ export const App: React.FC = () => {
 		dropTargetIndex: null,
 	});
 
+	// Add scroll state for dynamic header glass
+	const [scrollState, setScrollState] = useState({
+		isScrolled: false,
+		scrollProgress: 0, // 0-1 range for smooth transitions
+	});
+
 	const filterContainerRef = useRef<HTMLDivElement>(null);
+	const tableContainerRef = useRef<HTMLDivElement>(null);
 	const contextMenuRef = useRef(contextMenu);
 	const columnContextMenuRef = useRef(columnContextMenu);
 	const isFilterOpenRef = useRef(isFilterOpen);
@@ -1100,6 +1297,32 @@ export const App: React.FC = () => {
 			window.removeEventListener('resize', handleResize);
 		};
 	}, [isFilterOpen, calculateDropdownPosition, handleDocumentClick]);
+
+	// Scroll-edge awareness for dynamic header glass
+	useEffect(() => {
+		const handleScroll = () => {
+			const container = tableContainerRef.current;
+			if (!container) return;
+
+			const scrollTop = container.scrollTop;
+			const progress = Math.min(scrollTop / 100, 1); // 0-1 over first 100px
+
+			setScrollState({
+				isScrolled: scrollTop > 20,
+				scrollProgress: progress,
+			});
+		};
+
+		// Throttle to 60fps for smooth performance
+		const throttledScroll = throttle(handleScroll, 16);
+
+		const container = tableContainerRef.current;
+		container?.addEventListener('scroll', throttledScroll, { passive: true });
+
+		return () => {
+			container?.removeEventListener('scroll', throttledScroll);
+		};
+	}, []);
 
 	// Add context menu handlers
 	const handleContextMenu = useCallback(
@@ -1493,27 +1716,65 @@ export const App: React.FC = () => {
 	};
 
 	const handleFilenameMapping = (mapping: Record<number, string>) => {
-		const updates = selectedRows
+		const rowsToProcess =
+			selectedRows.length > 0 ? selectedRows : files.map((_, index) => index);
+
+		const updates = rowsToProcess
 			.map((rowIndex) => {
 				const file = files[rowIndex];
-				const filename = basename(file.filePath);
-				const match = filename.match(/(\d+)/);
-				if (match) {
-					const sceneNumber = parseInt(match[1], 10);
-					const newDescription = mapping[sceneNumber];
-					if (newDescription) {
-						const newBwf: Partial<BWFMetadata> = {
-							...file.bwf,
-							Description: newDescription,
-						};
-						return { filePath: file.filePath, data: { bwf: newBwf } };
-					}
-				}
-				return null;
-			})
-			.filter(Boolean) as { filePath: string; data: Partial<Wavedata> }[];
+				if (!file) return null;
 
-		storeActions.batchUpdateMetadata(updates);
+				const filename = basename(file.filePath);
+				const parts = filename.replace(/\.wav$/i, '').split('_');
+
+				const data: Partial<Wavedata> = {};
+
+				parts.forEach((part, index) => {
+					const field = mapping[index];
+					if (!field || field === 'ignore') return;
+
+					const trimmed = part.trim();
+					if (!trimmed) return;
+
+					switch (field) {
+						case 'show':
+							data.show = trimmed;
+							break;
+						case 'category':
+							data.category = trimmed;
+							break;
+						case 'subcategory':
+							data.subcategory = trimmed;
+							break;
+						case 'scene':
+							data.scene = trimmed;
+							break;
+						case 'slate':
+							data.slate = trimmed;
+							break;
+						case 'take':
+							data.take = trimmed;
+							break;
+						default:
+							break;
+					}
+				});
+
+				if (Object.keys(data).length === 0) {
+					return null;
+				}
+
+				return { filePath: file.filePath, data };
+			})
+			.filter(
+				(update): update is { filePath: string; data: Partial<Wavedata> } =>
+					update !== null
+			);
+
+		if (updates.length > 0) {
+			storeActions.batchUpdateMetadata(updates);
+		}
+
 		setIsMappingModalOpen(false);
 	};
 
@@ -1644,6 +1905,7 @@ export const App: React.FC = () => {
 
 			<UnifiedTopBar>
 				<LeftSection>
+					<WindowControls />
 					<TooltipButton
 						onClick={handleOpenDirectory}
 						tooltip='Open directory to load WAV files'
@@ -1687,7 +1949,7 @@ export const App: React.FC = () => {
 									: `Search ${
 											searchOptions.find((o) => o.value === searchField)
 												?.label || 'Filename'
-																		}...`
+									  }...`
 							}
 							value={searchText}
 							onChange={(e) => storeActions.setSearch(e.target.value)}
@@ -1720,7 +1982,7 @@ export const App: React.FC = () => {
 				</RightSection>
 			</UnifiedTopBar>
 
-			<TableContainer>
+			<TableContainer ref={tableContainerRef}>
 				{sortedFiles.length === 0 && !isLoading ? (
 					<EmptyState>
 						<h3>No Files Loaded</h3>
@@ -1736,6 +1998,8 @@ export const App: React.FC = () => {
 										return (
 											<TableHeader
 												key={column.key}
+												isScrolled={scrollState.isScrolled}
+												scrollProgress={scrollState.scrollProgress}
 												style={{
 													width: column.width,
 													textAlign: column.key === 'audio' ? 'center' : 'left',
@@ -1759,6 +2023,8 @@ export const App: React.FC = () => {
 									return (
 										<TableHeader
 											key={column.key}
+											isScrolled={scrollState.isScrolled}
+											scrollProgress={scrollState.scrollProgress}
 											draggable
 											style={{
 												width: column.width,

@@ -1,5 +1,6 @@
 import React from 'react';
 import styled from '@emotion/styled';
+import { VibrancyLayer } from './VibrancyLayer';
 
 const ModalOverlay = styled.div`
 	position: fixed;
@@ -7,74 +8,94 @@ const ModalOverlay = styled.div`
 	left: 0;
 	right: 0;
 	bottom: 0;
-	background: rgba(0, 0, 0, 0.7);
+	background: var(--modal-overlay);
+	backdrop-filter: var(--glass-backdrop);
 	display: flex;
 	justify-content: center;
 	align-items: center;
 	z-index: 1000;
 `;
 
-const ModalContent = styled.div`
-	background: rgba(40, 40, 50, 0.95);
-	padding: 30px;
-	border-radius: 12px;
-	border: 1px solid rgba(255, 255, 255, 0.1);
+const ModalContent = styled(VibrancyLayer)`
+	padding: 28px;
+	border-radius: 18px;
+	border: 1px solid var(--border-primary);
 	width: 90%;
 	max-width: 500px;
-	box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
-	backdrop-filter: blur(10px);
+	box-shadow: 0 24px 48px rgba(12, 22, 43, 0.38),
+		inset 0 1px 0 rgba(255, 255, 255, 0.12);
+	color: var(--text-primary);
 `;
 
 const Title = styled.h2`
 	margin-top: 0;
-	color: #e0e0e0;
+	color: var(--text-primary);
 	font-weight: 600;
 	text-align: center;
-	margin-bottom: 25px;
+	margin-bottom: 20px;
 `;
 
 const ShortcutList = styled.ul`
 	list-style: none;
 	padding: 0;
-	color: #a0a0b0;
+	margin: 0;
+	color: var(--text-secondary);
 `;
 
 const ShortcutItem = styled.li`
 	display: flex;
 	justify-content: space-between;
-	padding: 10px 0;
-	border-bottom: 1px solid #3a3a4a;
+	align-items: center;
+	padding: 12px 0;
+	border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+
 	&:last-child {
 		border-bottom: none;
 	}
 `;
 
+const ShortcutLabel = styled.span`
+	font-size: 14px;
+`;
+
 const Key = styled.kbd`
-	background: #2a2a3a;
-	padding: 4px 8px;
-	border-radius: 4px;
-	border: 1px solid #444;
+	background: rgba(255, 255, 255, 0.14);
+	padding: 6px 10px;
+	border-radius: 10px;
+	border: 1px solid rgba(255, 255, 255, 0.18);
 	font-family: 'Courier New', Courier, monospace;
-	color: #c0c0d0;
+	color: var(--text-primary);
+	box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2);
 `;
 
 const ButtonContainer = styled.div`
 	display: flex;
 	justify-content: flex-end;
-	margin-top: 30px;
+	margin-top: 24px;
 `;
 
 const CloseButton = styled.button`
 	padding: 10px 20px;
-	border: none;
-	border-radius: 6px;
+	border-radius: 12px;
+	border: 1px solid rgba(255, 255, 255, 0.18);
 	cursor: pointer;
 	font-weight: 600;
-	background: #4a4a5a;
-	color: white;
-	transition: background 0.2s;
+	background: linear-gradient(
+		145deg,
+		rgba(255, 255, 255, 0.16) 0%,
+		rgba(255, 255, 255, 0.1) 100%
+	);
+	color: var(--text-secondary);
+	transition: all 0.2s ease;
+	box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2);
+
 	&:hover {
-		background: #5a5a6a;
+		background: linear-gradient(
+			145deg,
+			rgba(255, 255, 255, 0.2) 0%,
+			rgba(255, 255, 255, 0.12) 100%
+		);
+		transform: translateY(-1px);
 	}
 `;
 
@@ -93,23 +114,23 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({
 
 	return (
 		<ModalOverlay onClick={onClose}>
-			<ModalContent onClick={(e) => e.stopPropagation()}>
+			<ModalContent intensity='strong' onClick={(e) => e.stopPropagation()}>
 				<Title>Keyboard Shortcuts</Title>
 				<ShortcutList>
 					<ShortcutItem>
-						<span>Undo</span>
+						<ShortcutLabel>Undo</ShortcutLabel>
 						<Key>Cmd/Ctrl + Z</Key>
 					</ShortcutItem>
 					<ShortcutItem>
-						<span>Redo</span>
+						<ShortcutLabel>Redo</ShortcutLabel>
 						<Key>Cmd/Ctrl + Shift + Z</Key>
 					</ShortcutItem>
 					<ShortcutItem>
-						<span>Save All</span>
+						<ShortcutLabel>Save All</ShortcutLabel>
 						<Key>Cmd/Ctrl + S</Key>
 					</ShortcutItem>
 					<ShortcutItem>
-						<span>Open Directory</span>
+						<ShortcutLabel>Open Directory</ShortcutLabel>
 						<Key>Cmd/Ctrl + O</Key>
 					</ShortcutItem>
 				</ShortcutList>

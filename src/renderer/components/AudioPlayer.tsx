@@ -14,9 +14,8 @@ const PlayerContainer = styled.div<{ isVisible: boolean }>`
 	bottom: 0;
 	left: 0;
 	right: 0;
-	height: 90px; // Increased from 80px to accommodate higher resolution waveform
-	background: var(--player-bg);
-	backdrop-filter: blur(15px);
+	height: 90px;
+	background: rgba(10, 14, 24, 0.78);
 	border-top: 1px solid var(--border-primary);
 	display: flex;
 	align-items: center;
@@ -26,17 +25,28 @@ const PlayerContainer = styled.div<{ isVisible: boolean }>`
 	transition: transform 0.3s ease-in-out;
 	z-index: 100;
 	color: var(--player-text);
+
+	/* Match app container corners on bottom edges */
+	border-bottom-left-radius: var(--window-corner-radius);
+	border-bottom-right-radius: var(--window-corner-radius);
+
+	/* Prevent any overflow */
+	overflow: hidden;
 `;
 
 const WaveformContainer = styled.div`
 	flex-grow: 1;
-	height: 70px; // Increased from 60px to accommodate the higher resolution waveform
+	height: 70px;
 	cursor: pointer;
 
-	/* Style the waveform container to be more visually prominent */
-	background: var(--waveform-bg);
+	/* Subtle inset styling - no additional glass (parent provides it) */
+	background: rgba(0, 0, 0, 0.2);
+	border: 1px solid rgba(255, 255, 255, 0.05);
 	border-radius: 8px;
 	padding: 5px;
+
+	/* Subtle inner shadow for depth */
+	box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.3);
 `;
 
 const TimeDisplay = styled.div`
@@ -81,11 +91,10 @@ export const AudioPlayer: React.FC = () => {
 		useStore.getState().setWaveformReady(ready);
 	}, []);
 
-	const setCurrentTime = useCallback((time: number) => {
-		useStore.getState().setCurrentTime(time);
-		// Update time display directly
-		updateTimeDisplay(time);
-	}, []);
+    const setCurrentTime = useCallback((time: number) => {
+        // Store update intentionally disabled to avoid re-renders
+        updateTimeDisplay(time);
+    }, [updateTimeDisplay]);
 
 	const stopAudio = useCallback(() => {
 		const ws = wavesurferRef.current;
