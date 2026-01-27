@@ -1,5 +1,6 @@
 import React from 'react';
 import styled from '@emotion/styled';
+import { VibrancyLayer } from './VibrancyLayer';
 
 const ModalOverlay = styled.div`
 	position: fixed;
@@ -7,29 +8,21 @@ const ModalOverlay = styled.div`
 	left: 0;
 	right: 0;
 	bottom: 0;
-	background: rgba(0, 0, 0, 0.7);
-	backdrop-filter: blur(8px);
+	background: var(--modal-overlay);
+	backdrop-filter: var(--glass-backdrop);
 	display: flex;
 	align-items: center;
 	justify-content: center;
 	z-index: 10000;
 `;
 
-const ModalContent = styled.div`
-	background: linear-gradient(
-		135deg,
-		rgba(40, 40, 50, 0.95) 0%,
-		rgba(30, 30, 40, 0.98) 100%
-	);
-	backdrop-filter: blur(20px);
-	border: 1px solid rgba(255, 255, 255, 0.1);
-	border-radius: 12px;
+const ModalContent = styled(VibrancyLayer)`
+	/* VibrancyLayer provides 16px border-radius per Liquid Glass standard */
 	padding: 24px;
 	width: 500px;
 	max-width: 90vw;
 	max-height: 80vh;
 	overflow-y: auto;
-	box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
 `;
 
 const ModalHeader = styled.div`
@@ -38,24 +31,24 @@ const ModalHeader = styled.div`
 	align-items: center;
 	margin-bottom: 20px;
 	padding-bottom: 16px;
-	border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+	border-bottom: 1px solid var(--border-secondary);
 `;
 
 const Title = styled.h2`
 	margin: 0;
-	color: #e0e0e0;
+	color: var(--text-primary);
 	font-size: 20px;
 	font-weight: 600;
 `;
 
 const CloseButton = styled.button`
-	background: none;
-	border: none;
-	color: #888;
+	background: transparent;
+	border: 1px solid transparent;
+	color: var(--text-muted);
 	font-size: 24px;
 	cursor: pointer;
 	padding: 4px;
-	border-radius: 4px;
+	border-radius: 8px;
 	transition: all 0.2s ease;
 	display: flex;
 	align-items: center;
@@ -64,8 +57,8 @@ const CloseButton = styled.button`
 	height: 32px;
 
 	&:hover {
-		background: rgba(255, 255, 255, 0.1);
-		color: #fff;
+		background: rgba(140, 183, 255, 0.16);
+		color: var(--accent-primary);
 	}
 `;
 
@@ -75,7 +68,7 @@ const Section = styled.div`
 
 const SectionTitle = styled.h3`
 	margin: 0 0 12px 0;
-	color: #ccc;
+	color: var(--text-secondary);
 	font-size: 16px;
 	font-weight: 500;
 `;
@@ -85,7 +78,7 @@ const SettingRow = styled.div`
 	justify-content: space-between;
 	align-items: center;
 	padding: 12px 0;
-	border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+	border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 
 	&:last-child {
 		border-bottom: none;
@@ -93,26 +86,33 @@ const SettingRow = styled.div`
 `;
 
 const SettingLabel = styled.div`
-	color: #e0e0e0;
+	color: var(--text-primary);
 	font-size: 14px;
 	font-weight: 500;
 `;
 
 const SettingDescription = styled.div`
-	color: #888;
+	color: var(--text-muted);
 	font-size: 12px;
 	margin-top: 4px;
 `;
 
 const Toggle = styled.button<{ enabled: boolean }>`
-	background: ${(props) => (props.enabled ? '#007aff' : '#444')};
-	border: none;
+	background: ${(props) =>
+		props.enabled
+			? 'linear-gradient(145deg, rgba(82, 156, 255, 0.95) 0%, rgba(40, 116, 255, 0.92) 100%)'
+			: 'rgba(255, 255, 255, 0.16)'};
+	border: 1px solid rgba(255, 255, 255, 0.18);
 	border-radius: 16px;
 	width: 48px;
 	height: 28px;
 	position: relative;
 	cursor: pointer;
-	transition: background 0.2s ease;
+	transition: all 0.2s ease;
+	box-shadow: ${(props) =>
+		props.enabled
+			? '0 8px 18px rgba(35, 82, 150, 0.35)'
+			: 'inset 0 1px 0 rgba(255, 255, 255, 0.25)'};
 
 	&::after {
 		content: '';
@@ -124,32 +124,33 @@ const Toggle = styled.button<{ enabled: boolean }>`
 		background: white;
 		border-radius: 50%;
 		transition: left 0.2s ease;
-		box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+		box-shadow: 0 4px 12px rgba(8, 16, 32, 0.35);
 	}
 
 	&:hover {
-		background: ${(props) => (props.enabled ? '#0056b3' : '#555')};
+		transform: translateY(-1px);
 	}
 `;
 
 const Select = styled.select`
-	background: rgba(0, 0, 0, 0.3);
-	border: 1px solid rgba(255, 255, 255, 0.1);
-	color: #e0e0e0;
+	background: rgba(255, 255, 255, 0.08);
+	border: 1px solid rgba(255, 255, 255, 0.16);
+	color: var(--text-primary);
 	padding: 8px 12px;
-	border-radius: 6px;
+	border-radius: 10px;
 	font-size: 14px;
 	cursor: pointer;
 	min-width: 120px;
+	backdrop-filter: var(--glass-backdrop);
 
 	&:focus {
 		outline: none;
-		border-color: #007aff;
+		border-color: rgba(140, 183, 255, 0.6);
 	}
 
 	option {
-		background: #333;
-		color: #e0e0e0;
+		background: rgba(14, 28, 56, 0.92);
+		color: var(--text-primary);
 	}
 `;
 
@@ -159,26 +160,34 @@ const ButtonContainer = styled.div`
 	justify-content: flex-end;
 	margin-top: 24px;
 	padding-top: 16px;
-	border-top: 1px solid rgba(255, 255, 255, 0.1);
+	border-top: 1px solid var(--border-secondary);
 `;
 
 const Button = styled.button<{ variant?: 'primary' | 'secondary' }>`
 	background: ${(props) =>
-		props.variant === 'primary' ? '#007aff' : 'rgba(255, 255, 255, 0.1)'};
-	color: ${(props) => (props.variant === 'primary' ? 'white' : '#e0e0e0')};
-	border: 1px solid
-		${(props) =>
-			props.variant === 'primary' ? 'transparent' : 'rgba(255, 255, 255, 0.1)'};
+		props.variant === 'primary'
+			? 'linear-gradient(145deg, rgba(82, 156, 255, 0.95) 0%, rgba(40, 116, 255, 0.92) 100%)'
+			: 'linear-gradient(145deg, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0.1) 100%)'};
+	color: ${(props) =>
+		props.variant === 'primary' ? '#ffffff' : 'var(--text-secondary)'};
+	border: 1px solid rgba(255, 255, 255, 0.18);
 	padding: 10px 20px;
-	border-radius: 6px;
+	border-radius: 12px;
 	cursor: pointer;
 	font-size: 14px;
 	font-weight: 500;
 	transition: all 0.2s ease;
+	box-shadow: ${(props) =>
+		props.variant === 'primary'
+			? '0 12px 24px rgba(32, 78, 145, 0.28)'
+			: 'inset 0 1px 0 rgba(255, 255, 255, 0.2)'};
 
 	&:hover {
 		background: ${(props) =>
-			props.variant === 'primary' ? '#0056b3' : 'rgba(255, 255, 255, 0.15)'};
+			props.variant === 'primary'
+				? 'linear-gradient(145deg, rgba(112, 178, 255, 0.98) 0%, rgba(56, 129, 255, 0.96) 100%)'
+				: 'linear-gradient(145deg, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0.12) 100%)'};
+		transform: translateY(-1px);
 	}
 `;
 
@@ -218,7 +227,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
 	return (
 		<ModalOverlay onClick={handleOverlayClick}>
-			<ModalContent>
+			<ModalContent intensity='strong'>
 				<ModalHeader>
 					<Title>Settings</Title>
 					<CloseButton onClick={onClose}>×</CloseButton>

@@ -33,7 +33,6 @@ const PlayerButton = styled.button`
 `;
 
 export const Controls: React.FC = () => {
-	console.log('[Controls] Rendering...');
 	const { isPlaying, isLoading } = useStoreWithEqualityFn(
 		useStore,
 		(state) => ({
@@ -43,27 +42,16 @@ export const Controls: React.FC = () => {
 		shallow
 	);
 
-	console.log('[Controls] State:', {
-		isPlaying,
-		isLoading,
-		currentFile:
-			useStore.getState().audioPlayer.currentFile?.filename || 'none',
-	});
-
 	const handleTogglePlayPause = useCallback(() => {
-		console.log('[Controls] Toggle play/pause clicked');
 		useStore.getState().togglePlayPause();
 	}, []);
 
 	const handleStop = useCallback(() => {
-		console.log('[Controls] Stop button clicked');
 		// Try to use the global stopAudioFunction first (which controls WaveSurfer directly)
 		const globalStopFunction = (window as any).stopAudioFunction;
 		if (globalStopFunction) {
-			console.log('[Controls] Using global stopAudioFunction');
 			globalStopFunction();
 		} else {
-			console.log('[Controls] Fallback to store stopAudio');
 			useStore.getState().stopAudio();
 		}
 	}, []);

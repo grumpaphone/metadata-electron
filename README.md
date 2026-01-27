@@ -277,6 +277,8 @@ DEBUG=* npm start
 5. Ensure UI follows Liquid Glass design language
 6. Submit a pull request
 
+> **Tip for collaborators / AI agents:** A running summary of Liquid Glass adoption decisions and outstanding work lives in `docs/AI_HANDOFF.md`. Please update that file when you touch the visual system so the next contributor can resume quickly.
+
 ### Code Style
 
 - **TypeScript**: Strict mode enabled

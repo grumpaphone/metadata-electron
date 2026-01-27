@@ -92,8 +92,30 @@ export class MetadataService {
 
 			console.log(`Metadata written successfully: ${filePath}`);
 		} catch (error) {
-			fs.copyFileSync(backupPath, filePath); // Restore from backup
+			try {
+				fs.copyFileSync(backupPath, filePath); // Restore from backup
+			} catch (restoreError) {
+				const message =
+					restoreError instanceof Error
+						? restoreError.message
+						: String(restoreError);
+				console.error(
+					`Failed to restore backup for ${filePath}: ${message}`
+				);
+			}
 			throw error;
+		} finally {
+			try {
+				if (fs.existsSync(backupPath)) {
+					fs.unlinkSync(backupPath);
+				}
+			} catch (cleanupError) {
+				const message =
+					cleanupError instanceof Error
+						? cleanupError.message
+						: String(cleanupError);
+				console.warn(`Failed to remove backup file ${backupPath}: ${message}`);
+			}
 		}
 	}
 
@@ -175,29 +197,73 @@ export class MetadataService {
 	}
 
 	private updateBwfData(wav: WaveFile, metadata: Wavedata): void {
-		if (!metadata.bwf) metadata.bwf = {};
-		// Transfer top-level fields to BWF if they make sense
-		metadata.bwf.Description = metadata.ixmlNote;
-		metadata.bwf.Originator = metadata.show;
+		const existingBext = ((wav as any).bext ?? {}) as Partial<BWFMetadata>;
+		const incomingBwf = metadata.bwf ?? {};
 
-		wav.bext = metadata.bwf;
+		const updatedBwf: Partial<BWFMetadata> = {
+			...existingBext,
+			...incomingBwf,
+		};
+
+		const trimmedShow = metadata.show?.trim();
+		if (trimmedShow && updatedBwf.Originator === undefined) {
+			updatedBwf.Originator = trimmedShow;
+		}
+
+		if (
+			metadata.ixmlNote !== undefined &&
+			(metadata.bwf?.Description === undefined ||
+				metadata.bwf.Description === '') &&
+			(updatedBwf.Description === undefined ||
+				updatedBwf.Description === '')
+		) {
+			updatedBwf.Description = metadata.ixmlNote;
+		}
+
+		(wav as any).bext = updatedBwf;
 	}
 
 	private updateIXMLData(wav: WaveFile, metadata: Wavedata): void {
-		if (!metadata.iXML) metadata.iXML = { BWFXML: {} };
-		if (!metadata.iXML.BWFXML) metadata.iXML.BWFXML = {};
+		const existingIXML =
+			metadata.iXML ??
+			this.extractIXMLData(wav) ?? {
+				BWFXML: {},
+			};
 
-		// Transfer top-level fields to iXML
-		metadata.iXML.BWFXML.PROJECT = metadata.show;
-		metadata.iXML.BWFXML.SCENE = metadata.scene;
-		metadata.iXML.BWFXML.TAKE = metadata.take;
-		metadata.iXML.BWFXML.SLATE = metadata.slate;
-		metadata.iXML.BWFXML.CATEGORY = metadata.category;
-		metadata.iXML.BWFXML.SUBCATEGORY = metadata.subcategory;
-		metadata.iXML.BWFXML.NOTE = metadata.ixmlNote;
-		metadata.iXML.BWFXML.CIRCLED = metadata.ixmlCircled === 'true';
+		const existingBWFXML = (existingIXML.BWFXML ?? {}) as Record<string, any>;
 
-		const xmlString = this.xmlBuilder.build(metadata.iXML);
+		const updatedBWFXML: Record<string, any> = {
+			...existingBWFXML,
+		};
+
+		const assignString = (key: string, value: string | undefined) => {
+			if (value !== undefined) {
+				updatedBWFXML[key] = value;
+			}
+		};
+
+		assignString('PROJECT', metadata.show?.trim());
+		assignString('SCENE', metadata.scene?.trim());
+		assignString('TAKE', metadata.take?.trim());
+		assignString('SLATE', metadata.slate?.trim());
+		assignString('CATEGORY', metadata.category?.trim());
+		assignString('SUBCATEGORY', metadata.subcategory?.trim());
+		assignString('NOTE', metadata.ixmlNote ?? existingBWFXML.NOTE);
+
+		if (metadata.ixmlCircled !== undefined) {
+			updatedBWFXML.CIRCLED = metadata.ixmlCircled === 'true';
+		}
+
+		if (metadata.ixmlWildtrack !== undefined) {
+			updatedBWFXML.WILD_TRACK = metadata.ixmlWildtrack === 'true';
+		}
+
+		const updatedIXML: IXMLMetadata = {
+			...(existingIXML || {}),
+			BWFXML: updatedBWFXML,
+		};
+
+		const xmlString = this.xmlBuilder.build(updatedIXML);
 		wav.setiXML(xmlString);
 	}
 }

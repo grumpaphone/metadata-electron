@@ -89,6 +89,11 @@ const electronAPI: IElectronAPI = {
 	// Debug helper
 	debugLog: (message: string, data?: any) =>
 		ipcRenderer.invoke(CHANNELS.debugLog, message, data),
+	// Window controls
+	windowMinimize: () => ipcRenderer.invoke(CHANNELS.windowMinimize),
+	windowClose: () => ipcRenderer.invoke(CHANNELS.windowClose),
+	windowToggleFullscreen: () =>
+		ipcRenderer.invoke(CHANNELS.windowToggleFullscreen),
 };
 
 // Expose the API to the renderer process under the `electronAPI` key.
