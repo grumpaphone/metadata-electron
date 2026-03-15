@@ -1,20 +1,28 @@
+type AnyFunction = (...args: any[]) => any;
+
 /**
- * Throttle function to limit how often a function can be called
- * @param func The function to throttle
- * @param limit The minimum time between function calls in milliseconds
- * @returns A throttled version of the function
+ * Throttle function for performance-critical event handlers
+ * Ensures function is called at most once per `limit` milliseconds
  */
-export function throttle<T extends (...args: any[]) => any>(
+export const throttle = <T extends AnyFunction>(
 	func: T,
 	limit: number
-): (...args: Parameters<T>) => void {
-	let inThrottle: boolean;
-	return function (this: any, ...args: Parameters<T>) {
+): ((...args: Parameters<T>) => void) => {
+	let inThrottle = false;
+	let lastArgs: Parameters<T> | null = null;
+
+	return (...args: Parameters<T>) => {
+		lastArgs = args;
 		if (!inThrottle) {
-			func.apply(this, args);
 			inThrottle = true;
-			setTimeout(() => (inThrottle = false), limit);
+			func(...args);
+			setTimeout(() => {
+				inThrottle = false;
+				if (lastArgs) {
+					func(...lastArgs);
+					lastArgs = null;
+				}
+			}, limit);
 		}
 	};
-}
-
+};

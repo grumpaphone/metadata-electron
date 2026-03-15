@@ -1849,9 +1849,9 @@ export const App: React.FC = () => {
 								searchField === 'all'
 									? 'Search'
 									: `Search ${
-											searchOptions.find((o) => o.value === searchField)
-												?.label || 'Filename'
-									  }...`
+										searchOptions.find((o) => o.value === searchField)
+											?.label || 'Filename'
+									}...`
 							}
 							value={searchText}
 							onChange={(e) => storeActions.setSearch(e.target.value)}
