@@ -4,20 +4,15 @@ import { VibrancyLayer } from './VibrancyLayer';
 
 const ModalOverlay = styled.div`
 	position: fixed;
-	top: 0;
-	left: 0;
-	right: 0;
-	bottom: 0;
+	top: 0; left: 0; right: 0; bottom: 0;
 	background: var(--modal-overlay);
-	backdrop-filter: var(--glass-backdrop);
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	z-index: 10000;
+	z-index: 2000;
 `;
 
 const ModalContent = styled(VibrancyLayer)`
-	/* VibrancyLayer provides 16px border-radius per Liquid Glass standard */
 	padding: 24px;
 	width: 500px;
 	max-width: 90vw;
@@ -49,15 +44,14 @@ const CloseButton = styled.button`
 	cursor: pointer;
 	padding: 4px;
 	border-radius: 8px;
-	transition: all 0.2s ease;
+	width: 32px;
+	height: 32px;
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	width: 32px;
-	height: 32px;
-
+	transition: all 0.2s ease;
 	&:hover {
-		background: rgba(140, 183, 255, 0.16);
+		background: var(--fill-tertiary);
 		color: var(--accent-primary);
 	}
 `;
@@ -78,11 +72,8 @@ const SettingRow = styled.div`
 	justify-content: space-between;
 	align-items: center;
 	padding: 12px 0;
-	border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-
-	&:last-child {
-		border-bottom: none;
-	}
+	border-bottom: 1px solid var(--border-secondary);
+	&:last-child { border-bottom: none; }
 `;
 
 const SettingLabel = styled.div`
@@ -98,21 +89,14 @@ const SettingDescription = styled.div`
 `;
 
 const Toggle = styled.button<{ enabled: boolean }>`
-	background: ${(props) =>
-		props.enabled
-			? 'linear-gradient(145deg, rgba(82, 156, 255, 0.95) 0%, rgba(40, 116, 255, 0.92) 100%)'
-			: 'rgba(255, 255, 255, 0.16)'};
-	border: 1px solid rgba(255, 255, 255, 0.18);
+	background: ${(props) => props.enabled ? 'var(--accent-primary)' : 'var(--fill-primary)'};
+	border: 1px solid var(--border-secondary);
 	border-radius: 16px;
 	width: 48px;
 	height: 28px;
 	position: relative;
 	cursor: pointer;
 	transition: all 0.2s ease;
-	box-shadow: ${(props) =>
-		props.enabled
-			? '0 8px 18px rgba(35, 82, 150, 0.35)'
-			: 'inset 0 1px 0 rgba(255, 255, 255, 0.25)'};
 
 	&::after {
 		content: '';
@@ -124,32 +108,25 @@ const Toggle = styled.button<{ enabled: boolean }>`
 		background: white;
 		border-radius: 50%;
 		transition: left 0.2s ease;
-		box-shadow: 0 4px 12px rgba(8, 16, 32, 0.35);
-	}
-
-	&:hover {
-		transform: translateY(-1px);
+		box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 	}
 `;
 
 const Select = styled.select`
-	background: rgba(255, 255, 255, 0.08);
-	border: 1px solid rgba(255, 255, 255, 0.16);
+	background: var(--input-bg);
+	border: 1px solid var(--input-border);
 	color: var(--text-primary);
 	padding: 8px 12px;
-	border-radius: 10px;
+	border-radius: 6px;
 	font-size: 14px;
 	cursor: pointer;
 	min-width: 120px;
-	backdrop-filter: var(--glass-backdrop);
-
 	&:focus {
 		outline: none;
-		border-color: rgba(140, 183, 255, 0.6);
+		border-color: var(--accent-primary);
 	}
-
 	option {
-		background: rgba(14, 28, 56, 0.92);
+		background: var(--bg-tertiary);
 		color: var(--text-primary);
 	}
 `;
@@ -164,30 +141,17 @@ const ButtonContainer = styled.div`
 `;
 
 const Button = styled.button<{ variant?: 'primary' | 'secondary' }>`
-	background: ${(props) =>
-		props.variant === 'primary'
-			? 'linear-gradient(145deg, rgba(82, 156, 255, 0.95) 0%, rgba(40, 116, 255, 0.92) 100%)'
-			: 'linear-gradient(145deg, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0.1) 100%)'};
-	color: ${(props) =>
-		props.variant === 'primary' ? '#ffffff' : 'var(--text-secondary)'};
-	border: 1px solid rgba(255, 255, 255, 0.18);
+	background: ${(props) => props.variant === 'primary' ? 'var(--accent-primary)' : 'var(--fill-tertiary)'};
+	color: ${(props) => props.variant === 'primary' ? '#ffffff' : 'var(--text-secondary)'};
+	border: 1px solid var(--border-secondary);
 	padding: 10px 20px;
-	border-radius: 12px;
+	border-radius: 6px;
 	cursor: pointer;
 	font-size: 14px;
 	font-weight: 500;
 	transition: all 0.2s ease;
-	box-shadow: ${(props) =>
-		props.variant === 'primary'
-			? '0 12px 24px rgba(32, 78, 145, 0.28)'
-			: 'inset 0 1px 0 rgba(255, 255, 255, 0.2)'};
-
 	&:hover {
-		background: ${(props) =>
-			props.variant === 'primary'
-				? 'linear-gradient(145deg, rgba(112, 178, 255, 0.98) 0%, rgba(56, 129, 255, 0.96) 100%)'
-				: 'linear-gradient(145deg, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0.12) 100%)'};
-		transform: translateY(-1px);
+		background: ${(props) => props.variant === 'primary' ? 'var(--accent-hover)' : 'var(--fill-secondary)'};
 	}
 `;
 
@@ -203,34 +167,17 @@ interface SettingsModalProps {
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
-	isOpen,
-	onClose,
-	isDarkMode,
-	onThemeToggle,
-	fontSize,
-	onFontSizeChange,
-	showTooltips,
-	onTooltipsToggle,
+	isOpen, onClose, isDarkMode, onThemeToggle,
+	fontSize, onFontSizeChange, showTooltips, onTooltipsToggle,
 }) => {
 	if (!isOpen) return null;
 
-	const handleOverlayClick = (e: React.MouseEvent) => {
-		if (e.target === e.currentTarget) {
-			onClose();
-		}
-	};
-
-	const handleSave = () => {
-		// Settings are automatically saved through the props callbacks
-		onClose();
-	};
-
 	return (
-		<ModalOverlay onClick={handleOverlayClick}>
-			<ModalContent intensity='strong'>
+		<ModalOverlay onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+			<ModalContent intensity="strong" role="dialog" aria-modal="true" aria-label="Settings">
 				<ModalHeader>
 					<Title>Settings</Title>
-					<CloseButton onClick={onClose}>×</CloseButton>
+					<CloseButton onClick={onClose} aria-label="Close settings">×</CloseButton>
 				</ModalHeader>
 
 				<Section>
@@ -238,11 +185,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 					<SettingRow>
 						<div>
 							<SettingLabel>Show tooltips</SettingLabel>
-							<SettingDescription>
-								Display helpful tooltips on buttons and controls
-							</SettingDescription>
+							<SettingDescription>Display helpful tooltips on buttons and controls</SettingDescription>
 						</div>
-						<Toggle enabled={showTooltips} onClick={onTooltipsToggle} />
+						<Toggle enabled={showTooltips} onClick={onTooltipsToggle} aria-label="Toggle tooltips" />
 					</SettingRow>
 				</Section>
 
@@ -251,37 +196,27 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 					<SettingRow>
 						<div>
 							<SettingLabel>Dark mode</SettingLabel>
-							<SettingDescription>
-								Toggle between dark and light themes
-							</SettingDescription>
+							<SettingDescription>Toggle between dark and light themes</SettingDescription>
 						</div>
-						<Toggle enabled={isDarkMode} onClick={onThemeToggle} />
+						<Toggle enabled={isDarkMode} onClick={onThemeToggle} aria-label="Toggle dark mode" />
 					</SettingRow>
 					<SettingRow>
 						<div>
 							<SettingLabel>Font size</SettingLabel>
-							<SettingDescription>
-								Adjust the font size for metadata fields
-							</SettingDescription>
+							<SettingDescription>Adjust the font size for metadata fields</SettingDescription>
 						</div>
-						<Select
-							value={fontSize}
-							onChange={(e) => onFontSizeChange(e.target.value)}>
-							<option value='10'>Small (10px)</option>
-							<option value='11'>Default (11px)</option>
-							<option value='12'>Medium (12px)</option>
-							<option value='14'>Large (14px)</option>
+						<Select value={fontSize} onChange={(e) => onFontSizeChange(e.target.value)}>
+							<option value="10">Small (10px)</option>
+							<option value="11">Default (11px)</option>
+							<option value="12">Medium (12px)</option>
+							<option value="14">Large (14px)</option>
 						</Select>
 					</SettingRow>
 				</Section>
 
 				<ButtonContainer>
-					<Button variant='secondary' onClick={onClose}>
-						Cancel
-					</Button>
-					<Button variant='primary' onClick={handleSave}>
-						Save Settings
-					</Button>
+					<Button variant="secondary" onClick={onClose}>Cancel</Button>
+					<Button variant="primary" onClick={onClose}>Save Settings</Button>
 				</ButtonContainer>
 			</ModalContent>
 		</ModalOverlay>

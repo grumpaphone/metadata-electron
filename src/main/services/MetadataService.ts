@@ -9,7 +9,9 @@ export class MetadataService {
 	private xmlBuilder = new XMLBuilder({});
 
 	async readMetadata(filePath: string): Promise<Wavedata> {
-		if (!fs.existsSync(filePath)) {
+		try {
+			await fs.promises.access(filePath);
+		} catch {
 			throw new Error(`File not found: ${filePath}`);
 		}
 
@@ -19,27 +21,24 @@ export class MetadataService {
 		}
 
 		try {
-			const buffer = fs.readFileSync(filePath);
+			const buffer = await fs.promises.readFile(filePath);
 			const wav = new WaveFile();
 			wav.fromBuffer(buffer);
 
-			const fileInfo = this.getFileInfo(filePath, wav);
+			const stats = await fs.promises.stat(filePath);
+			const fileInfo = this.getFileInfo(filePath, wav, stats);
 			const bwf = this.extractBwfData(wav);
 			const ixml = this.extractIXMLData(wav);
 			const filenameData = this.parseFilename(fileInfo.fileName);
 
-			// Hierarchical field extraction, prioritizing filename parse for structure
-			const show =
-				ixml?.BWFXML?.PROJECT || filenameData.show || bwf.Originator || '';
+			const show = ixml?.BWFXML?.PROJECT || filenameData.show || bwf.Originator || '';
 			let scene = ixml?.BWFXML?.SCENE || filenameData.scene || '';
 			let take = ixml?.BWFXML?.TAKE || filenameData.take || '';
 			const slate = ixml?.BWFXML?.SLATE || filenameData.slate || '';
 			const category = ixml?.BWFXML?.CATEGORY || filenameData.category || '';
-			const subcategory =
-				ixml?.BWFXML?.SUBCATEGORY || filenameData.subcategory || '';
+			const subcategory = ixml?.BWFXML?.SUBCATEGORY || filenameData.subcategory || '';
 			const note = ixml?.BWFXML?.NOTE || bwf.Description || '';
 
-			// Pattern matching for Scene/Take from BWF Description
 			if ((!scene || !take) && bwf.Description) {
 				const sceneTakeMatch = bwf.Description.match(
 					/S(?:C|CNE)?[_\s]*(\S+?)[_\s]*T(?:K|AKE)?[_\s]*(\S+)/i
@@ -63,7 +62,7 @@ export class MetadataService {
 				ixmlWildtrack: String(!!ixml?.BWFXML?.WILD_TRACK),
 				ixmlCircled: String(!!ixml?.BWFXML?.CIRCLED),
 				bwf,
-				iXML: ixml,
+				iXML: ixml ?? undefined,
 				fileInfo,
 				duration: fileInfo.duration,
 				fileSize: fileInfo.fileSize,
@@ -77,10 +76,10 @@ export class MetadataService {
 
 	async writeMetadata(filePath: string, metadata: Wavedata): Promise<void> {
 		const backupPath = filePath + '.backup';
-		fs.copyFileSync(filePath, backupPath);
+		await fs.promises.copyFile(filePath, backupPath);
 
 		try {
-			const buffer = fs.readFileSync(filePath);
+			const buffer = await fs.promises.readFile(filePath);
 			const wav = new WaveFile();
 			wav.fromBuffer(buffer);
 
@@ -88,64 +87,58 @@ export class MetadataService {
 			this.updateIXMLData(wav, metadata);
 
 			const outputBuffer = wav.toBuffer();
-			fs.writeFileSync(filePath, outputBuffer);
+			await fs.promises.writeFile(filePath, outputBuffer);
 
 			console.log(`Metadata written successfully: ${filePath}`);
 		} catch (error) {
 			try {
-				fs.copyFileSync(backupPath, filePath); // Restore from backup
+				await fs.promises.copyFile(backupPath, filePath);
 			} catch (restoreError) {
-				const message =
-					restoreError instanceof Error
-						? restoreError.message
-						: String(restoreError);
-				console.error(
-					`Failed to restore backup for ${filePath}: ${message}`
+				const restoreMsg = restoreError instanceof Error ? restoreError.message : String(restoreError);
+				console.error(`CRITICAL: Failed to restore backup for ${filePath}: ${restoreMsg}`);
+				throw new Error(
+					`Write failed AND backup restore failed for ${filePath}. ` +
+					`The file may be corrupted. A backup may exist at ${backupPath}. ` +
+					`Original error: ${error instanceof Error ? error.message : String(error)}. ` +
+					`Restore error: ${restoreMsg}`
 				);
 			}
 			throw error;
 		} finally {
 			try {
-				if (fs.existsSync(backupPath)) {
-					fs.unlinkSync(backupPath);
-				}
-			} catch (cleanupError) {
-				const message =
-					cleanupError instanceof Error
-						? cleanupError.message
-						: String(cleanupError);
-				console.warn(`Failed to remove backup file ${backupPath}: ${message}`);
+				await fs.promises.access(backupPath);
+				await fs.promises.unlink(backupPath);
+			} catch {
+				// Backup already cleaned up or doesn't exist
 			}
 		}
 	}
 
 	private parseFilename(fileName: string): Partial<Wavedata> {
-		// Regex for formats like: PR2_Allen_Sc5.14D_01.wav
 		const pattern = /^([^_]+)_([^_]+)_Sc([\d.]+)([A-Z]?)_(\d+)\.wav$/i;
 		const match = fileName.match(pattern);
 
 		if (match) {
-			const sceneNumber = match[3]; // e.g., "5.14"
-			const slate = match[4] || ''; // e.g., "D"
+			const sceneNumber = match[3];
+			const slate = match[4] || '';
 			const episode = sceneNumber.split('.')[0];
 
 			return {
-				show: match[1], // e.g., "PR2"
-				category: match[2], // e.g., "Allen"
-				scene: sceneNumber, // e.g., "5.14"
-				slate: slate, // e.g., "D"
-				take: match[5], // e.g., "01"
-				subcategory: episode, // e.g., "5"
+				show: match[1],
+				category: match[2],
+				scene: sceneNumber,
+				slate,
+				take: match[5],
+				subcategory: episode,
 			};
 		}
 
 		return {};
 	}
 
-	private getFileInfo(filePath: string, wav: WaveFile): FileInfo {
-		const stats = fs.statSync(filePath);
-		const fmt = wav.fmt as any;
-		const data = wav.data as any;
+	private getFileInfo(filePath: string, wav: WaveFile, stats: fs.Stats): FileInfo {
+		const fmt = wav.fmt as Record<string, number>;
+		const data = wav.data as Record<string, { length: number }>;
 
 		return {
 			fileName: path.basename(filePath),
@@ -164,18 +157,19 @@ export class MetadataService {
 	private extractBwfData(wav: WaveFile): Partial<BWFMetadata> {
 		const bwfData: Partial<BWFMetadata> = {};
 		try {
-			const bext = (wav as any).bext;
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			const bext = (wav as any).bext as Record<string, unknown> | undefined;
 			if (bext) {
-				bwfData.Description = bext.description || '';
-				bwfData.Originator = bext.originator || '';
-				bwfData.OriginatorReference = bext.originatorReference || '';
-				bwfData.OriginationDate = bext.originationDate || '';
-				bwfData.OriginationTime = bext.originationTime || '';
+				bwfData.Description = (bext.description as string) || '';
+				bwfData.Originator = (bext.originator as string) || '';
+				bwfData.OriginatorReference = (bext.originatorReference as string) || '';
+				bwfData.OriginationDate = (bext.originationDate as string) || '';
+				bwfData.OriginationTime = (bext.originationTime as string) || '';
 				if (bext.timeReference && Array.isArray(bext.timeReference)) {
-					bwfData.TimeReferenceLow = bext.timeReference[0] || 0;
-					bwfData.TimeReferenceHigh = bext.timeReference[1] || 0;
+					bwfData.TimeReferenceLow = (bext.timeReference[0] as number) || 0;
+					bwfData.TimeReferenceHigh = (bext.timeReference[1] as number) || 0;
 				}
-				bwfData.CodingHistory = bext.codingHistory || '';
+				bwfData.CodingHistory = (bext.codingHistory as string) || '';
 			}
 		} catch (error) {
 			console.warn('Error extracting BWF data:', error);
@@ -185,10 +179,9 @@ export class MetadataService {
 
 	private extractIXMLData(wav: WaveFile): IXMLMetadata | null {
 		try {
-			// Correctly get the iXML chunk data using the library's method
 			const ixmlString = wav.getiXML();
 			if (ixmlString && typeof ixmlString === 'string') {
-				return this.xmlParser.parse(ixmlString);
+				return this.xmlParser.parse(ixmlString) as IXMLMetadata;
 			}
 		} catch (error) {
 			console.warn('Error parsing iXML data:', error);
@@ -197,7 +190,9 @@ export class MetadataService {
 	}
 
 	private updateBwfData(wav: WaveFile, metadata: Wavedata): void {
-		const existingBext = ((wav as any).bext ?? {}) as Partial<BWFMetadata>;
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		const wavRecord = wav as any;
+		const existingBext = (wavRecord.bext ?? {}) as Partial<BWFMetadata>;
 		const incomingBwf = metadata.bwf ?? {};
 
 		const updatedBwf: Partial<BWFMetadata> = {
@@ -212,34 +207,25 @@ export class MetadataService {
 
 		if (
 			metadata.ixmlNote !== undefined &&
-			(metadata.bwf?.Description === undefined ||
-				metadata.bwf.Description === '') &&
-			(updatedBwf.Description === undefined ||
-				updatedBwf.Description === '')
+			(metadata.bwf?.Description === undefined || metadata.bwf.Description === '') &&
+			(updatedBwf.Description === undefined || updatedBwf.Description === '')
 		) {
 			updatedBwf.Description = metadata.ixmlNote;
 		}
 
-		(wav as any).bext = updatedBwf;
+		wavRecord.bext = updatedBwf;
 	}
 
 	private updateIXMLData(wav: WaveFile, metadata: Wavedata): void {
 		const existingIXML =
 			metadata.iXML ??
-			this.extractIXMLData(wav) ?? {
-				BWFXML: {},
-			};
+			this.extractIXMLData(wav) ?? { BWFXML: {} };
 
-		const existingBWFXML = (existingIXML.BWFXML ?? {}) as Record<string, any>;
-
-		const updatedBWFXML: Record<string, any> = {
-			...existingBWFXML,
-		};
+		const existingBWFXML = (existingIXML.BWFXML ?? {}) as Record<string, unknown>;
+		const updatedBWFXML: Record<string, unknown> = { ...existingBWFXML };
 
 		const assignString = (key: string, value: string | undefined) => {
-			if (value !== undefined) {
-				updatedBWFXML[key] = value;
-			}
+			if (value !== undefined) updatedBWFXML[key] = value;
 		};
 
 		assignString('PROJECT', metadata.show?.trim());
@@ -248,12 +234,11 @@ export class MetadataService {
 		assignString('SLATE', metadata.slate?.trim());
 		assignString('CATEGORY', metadata.category?.trim());
 		assignString('SUBCATEGORY', metadata.subcategory?.trim());
-		assignString('NOTE', metadata.ixmlNote ?? existingBWFXML.NOTE);
+		assignString('NOTE', metadata.ixmlNote ?? (existingBWFXML.NOTE as string | undefined));
 
 		if (metadata.ixmlCircled !== undefined) {
 			updatedBWFXML.CIRCLED = metadata.ixmlCircled === 'true';
 		}
-
 		if (metadata.ixmlWildtrack !== undefined) {
 			updatedBWFXML.WILD_TRACK = metadata.ixmlWildtrack === 'true';
 		}

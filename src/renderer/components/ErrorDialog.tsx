@@ -1,36 +1,30 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import styled from '@emotion/styled';
 import { VibrancyLayer } from './VibrancyLayer';
 
 const DialogOverlay = styled.div`
 	position: fixed;
-	top: 0;
-	left: 0;
-	right: 0;
-	bottom: 0;
+	top: 0; left: 0; right: 0; bottom: 0;
 	background: var(--modal-overlay);
-	backdrop-filter: var(--glass-backdrop);
 	display: flex;
 	justify-content: center;
 	align-items: center;
-	z-index: 1000;
+	z-index: 2000;
 `;
 
 const DialogContent = styled(VibrancyLayer)`
 	padding: 28px;
-	border-radius: 16px;
-	border: 1px solid var(--border-primary);
+	border-radius: 12px;
 	width: 90%;
 	max-width: 400px;
-	box-shadow: 0 20px 40px rgba(12, 22, 43, 0.38),
-		inset 0 1px 0 rgba(255, 255, 255, 0.12);
+	box-shadow: var(--shadow-md);
 	text-align: center;
 	color: var(--text-primary);
 `;
 
 const Title = styled.h2`
 	margin-top: 0;
-	color: rgba(255, 120, 140, 0.95);
+	color: var(--color-error);
 	font-weight: 600;
 `;
 
@@ -43,26 +37,15 @@ const Message = styled.p`
 
 const CloseButton = styled.button`
 	padding: 10px 20px;
-	border-radius: 12px;
-	border: 1px solid rgba(255, 255, 255, 0.18);
+	border-radius: 6px;
+	border: 1px solid var(--border-secondary);
 	cursor: pointer;
 	font-weight: 600;
-	background: linear-gradient(
-		145deg,
-		rgba(255, 255, 255, 0.16) 0%,
-		rgba(255, 255, 255, 0.1) 100%
-	);
+	background: var(--fill-tertiary);
 	color: var(--text-secondary);
 	transition: all 0.2s ease;
-	box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2);
-
 	&:hover {
-		background: linear-gradient(
-			145deg,
-			rgba(255, 255, 255, 0.2) 0%,
-			rgba(255, 255, 255, 0.12) 100%
-		);
-		transform: translateY(-1px);
+		background: var(--fill-secondary);
 	}
 `;
 
@@ -71,18 +54,26 @@ interface ErrorDialogProps {
 	onClose: () => void;
 }
 
-export const ErrorDialog: React.FC<ErrorDialogProps> = ({
-	message,
-	onClose,
-}) => {
+export const ErrorDialog: React.FC<ErrorDialogProps> = ({ message, onClose }) => {
+	const closeRef = useRef<HTMLButtonElement>(null);
+
+	useEffect(() => {
+		closeRef.current?.focus();
+		const handleEscape = (e: KeyboardEvent) => {
+			if (e.key === 'Escape') onClose();
+		};
+		document.addEventListener('keydown', handleEscape);
+		return () => document.removeEventListener('keydown', handleEscape);
+	}, [onClose]);
+
 	if (!message) return null;
 
 	return (
 		<DialogOverlay onClick={onClose}>
-			<DialogContent intensity='strong' onClick={(e) => e.stopPropagation()}>
+			<DialogContent intensity="strong" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Error">
 				<Title>Error</Title>
 				<Message>{message}</Message>
-				<CloseButton onClick={onClose}>Close</CloseButton>
+				<CloseButton ref={closeRef} onClick={onClose}>Close</CloseButton>
 			</DialogContent>
 		</DialogOverlay>
 	);

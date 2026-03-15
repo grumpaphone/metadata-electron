@@ -2,7 +2,6 @@
 // https://www.electronjs.org/docs/latest/tutorial/process-model#preload-scripts
 
 import { contextBridge, ipcRenderer } from 'electron';
-import { Wavedata } from './types';
 import { IElectronAPI, CHANNELS } from './ipc-api';
 
 console.log('🔧 PRELOAD: Script starting...');
@@ -73,6 +72,11 @@ const electronAPI: IElectronAPI = {
 	mirrorFiles: (config) => ipcRenderer.invoke(CHANNELS.mirrorFiles, config),
 	checkFileConflicts: (config) =>
 		ipcRenderer.invoke(CHANNELS.checkFileConflicts, config),
+	// File Watching
+	startFileWatching: (filePath: string) =>
+		ipcRenderer.invoke(CHANNELS.startFileWatching, filePath),
+	stopFileWatching: () =>
+		ipcRenderer.invoke(CHANNELS.stopFileWatching),
 	// Agents & Status
 	getAgentStatuses: () => ipcRenderer.invoke(CHANNELS.getAgentStatuses),
 	toggleAgent: (name, active) =>

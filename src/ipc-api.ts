@@ -31,6 +31,9 @@ export const CHANNELS = {
 	getAgentStatuses: 'ipc:agents-get-statuses',
 	toggleAgent: 'ipc:agents-toggle',
 	triggerAgent: 'ipc:agents-trigger',
+	// File Watching
+	startFileWatching: 'ipc:start-file-watching',
+	stopFileWatching: 'ipc:stop-file-watching',
 	// Listeners (Main -> Renderer)
 	onFileChanged: 'ipc:on-file-changed',
 	onProgressUpdate: 'ipc:on-progress-update',
@@ -76,6 +79,9 @@ export interface IElectronAPI {
 	getAgentStatuses: () => Promise<AgentStatus[]>;
 	toggleAgent: (name: string, active: boolean) => Promise<void>;
 	triggerAgent: (name: string) => Promise<void>;
+	// File Watching
+	startFileWatching: (filePath: string) => Promise<void>;
+	stopFileWatching: () => Promise<void>;
 	// Listeners
 	onFileChanged: (callback: (filePath: string) => void) => () => void;
 	onProgressUpdate: (callback: (progress: any) => void) => () => void;

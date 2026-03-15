@@ -1,28 +1,23 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import styled from '@emotion/styled';
 import { VibrancyLayer } from './VibrancyLayer';
 
 const ModalOverlay = styled.div`
 	position: fixed;
-	top: 0;
-	left: 0;
-	right: 0;
-	bottom: 0;
+	top: 0; left: 0; right: 0; bottom: 0;
 	background: var(--modal-overlay);
 	display: flex;
 	justify-content: center;
 	align-items: center;
-	z-index: 1000;
+	z-index: 2000;
 `;
 
 const ModalContent = styled(VibrancyLayer)`
 	padding: 30px;
-	border-radius: 20px;
-	border: 1px solid var(--border-primary);
+	border-radius: 12px;
 	width: 90%;
 	max-width: 600px;
-	box-shadow: 0 28px 60px rgba(8, 16, 32, 0.45),
-		inset 0 1px 0 rgba(255, 255, 255, 0.12);
+	box-shadow: var(--shadow-md);
 `;
 
 const Title = styled.h2`
@@ -46,35 +41,26 @@ const MappingRow = styled.div`
 `;
 
 const FilenamePart = styled.span`
-	background: rgba(255, 255, 255, 0.08);
+	background: var(--fill-tertiary);
 	padding: 8px 12px;
-	border-radius: 12px;
+	border-radius: 6px;
 	color: var(--text-secondary);
-	font-family: 'Courier New', Courier, monospace;
+	font-family: 'Monaco', 'Menlo', monospace;
 	flex: 1;
 	text-align: center;
-	border: 1px solid rgba(255, 255, 255, 0.12);
-	box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15);
+	border: 1px solid var(--border-secondary);
 `;
 
 const Select = styled.select`
-	background: rgba(255, 255, 255, 0.08);
+	background: var(--input-bg);
 	color: var(--text-primary);
-	border: 1px solid rgba(255, 255, 255, 0.16);
-	border-radius: 10px;
+	border: 1px solid var(--input-border);
+	border-radius: 6px;
 	padding: 8px 12px;
 	flex: 1;
 	cursor: pointer;
-	backdrop-filter: var(--glass-backdrop);
-	&:focus {
-		outline: none;
-		border-color: rgba(140, 183, 255, 0.6);
-	}
-
-	option {
-		background: rgba(14, 28, 56, 0.92);
-		color: var(--text-primary);
-	}
+	&:focus { outline: none; border-color: var(--accent-primary); }
+	option { background: var(--bg-tertiary); color: var(--text-primary); }
 `;
 
 const ButtonContainer = styled.div`
@@ -86,38 +72,19 @@ const ButtonContainer = styled.div`
 
 const Button = styled.button<{ primary?: boolean }>`
 	padding: 10px 20px;
-	border: 1px solid rgba(255, 255, 255, 0.18);
-	border-radius: 12px;
+	border: 1px solid var(--border-secondary);
+	border-radius: 6px;
 	cursor: pointer;
 	font-weight: 600;
-	background: ${(props) =>
-		props.primary
-			? 'linear-gradient(145deg, rgba(82, 156, 255, 0.95) 0%, rgba(40, 116, 255, 0.92) 100%)'
-			: 'linear-gradient(145deg, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0.1) 100%)'};
+	background: ${(props) => props.primary ? 'var(--accent-primary)' : 'var(--fill-tertiary)'};
 	color: ${(props) => (props.primary ? '#ffffff' : 'var(--text-secondary)')};
 	transition: all 0.2s ease;
-	box-shadow: ${(props) =>
-		props.primary
-			? '0 12px 24px rgba(32, 78, 145, 0.28)'
-			: 'inset 0 1px 0 rgba(255, 255, 255, 0.2)'};
 	&:hover {
-		background: ${(props) =>
-			props.primary
-				? 'linear-gradient(145deg, rgba(112, 178, 255, 0.98) 0%, rgba(56, 129, 255, 0.96) 100%)'
-				: 'linear-gradient(145deg, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0.12) 100%)'};
-		transform: translateY(-1px);
+		opacity: 0.9;
 	}
 `;
 
-const MAPPING_OPTIONS = [
-	'ignore',
-	'show',
-	'category',
-	'subcategory',
-	'scene',
-	'slate',
-	'take',
-];
+const MAPPING_OPTIONS = ['ignore', 'show', 'category', 'subcategory', 'scene', 'slate', 'take'];
 
 interface FilenameMappingModalProps {
 	isOpen: boolean;
@@ -127,10 +94,7 @@ interface FilenameMappingModalProps {
 }
 
 export const FilenameMappingModal: React.FC<FilenameMappingModalProps> = ({
-	isOpen,
-	onClose,
-	onApply,
-	sampleFilename,
+	isOpen, onClose, onApply, sampleFilename,
 }) => {
 	const filenameParts = useMemo(
 		() => sampleFilename.replace(/\.wav$/i, '').split('_'),
@@ -139,46 +103,35 @@ export const FilenameMappingModal: React.FC<FilenameMappingModalProps> = ({
 
 	const [mapping, setMapping] = useState<Record<number, string>>({});
 
-	if (!isOpen) {
-		return null;
-	}
+	useEffect(() => {
+		if (!isOpen) return;
+		const handleEscape = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+		document.addEventListener('keydown', handleEscape);
+		return () => document.removeEventListener('keydown', handleEscape);
+	}, [isOpen, onClose]);
 
-	const handleApply = () => {
-		onApply(mapping);
-		onClose();
-	};
+	if (!isOpen) return null;
 
 	return (
-		<ModalOverlay>
-			<ModalContent intensity='strong'>
+		<ModalOverlay onClick={onClose}>
+			<ModalContent intensity="strong" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Map Filename Parts">
 				<Title>Map Filename Parts</Title>
-				<Instructions>
-					Assign each part of the filename to a metadata field.
-				</Instructions>
+				<Instructions>Assign each part of the filename to a metadata field.</Instructions>
 				{filenameParts.map((part, index) => (
 					<MappingRow key={index}>
 						<FilenamePart>{part}</FilenamePart>
 						<Select
 							value={mapping[index] || 'ignore'}
-							onChange={(e) =>
-								setMapping({
-									...mapping,
-									[index]: e.target.value,
-								})
-							}>
+							onChange={(e) => setMapping({ ...mapping, [index]: e.target.value })}>
 							{MAPPING_OPTIONS.map((opt) => (
-								<option key={opt} value={opt}>
-									{opt.charAt(0).toUpperCase() + opt.slice(1)}
-								</option>
+								<option key={opt} value={opt}>{opt.charAt(0).toUpperCase() + opt.slice(1)}</option>
 							))}
 						</Select>
 					</MappingRow>
 				))}
 				<ButtonContainer>
 					<Button onClick={onClose}>Cancel</Button>
-					<Button onClick={handleApply} primary>
-						Apply Mapping
-					</Button>
+					<Button onClick={() => { onApply(mapping); onClose(); }} primary>Apply Mapping</Button>
 				</ButtonContainer>
 			</ModalContent>
 		</ModalOverlay>

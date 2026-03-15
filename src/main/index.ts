@@ -115,7 +115,9 @@ const createWindow = () => {
 
 	mainWindow.loadURL(MAIN_WINDOW_WEBPACK_ENTRY);
 
-	mainWindow.webContents.openDevTools();
+	if (!app.isPackaged) {
+		mainWindow.webContents.openDevTools();
+	}
 };
 
 const getAgentStatusSnapshot = (): AgentStatus[] => {
@@ -339,16 +341,15 @@ ipcMain.handle(CHANNELS.loadAudioFile, async (event, filePath: string) => {
 	}
 });
 
-ipcMain.handle('start-file-watching', async (event, filePath: string) => {
+ipcMain.handle(CHANNELS.startFileWatching, async (event, filePath: string) => {
 	if (!filePath) {
 		startFileWatcher(null);
 		return;
 	}
-
 	startFileWatcher(filePath);
 });
 
-ipcMain.on('stop-file-watching', () => {
+ipcMain.handle(CHANNELS.stopFileWatching, async () => {
 	startFileWatcher(null);
 });
 
@@ -397,6 +398,9 @@ ipcMain.handle(CHANNELS.checkIsDirectory, async (event, filePath: string) => {
 });
 
 ipcMain.handle(CHANNELS.createTestFiles, async () => {
+	if (app.isPackaged) {
+		throw new Error('Test file creation is only available in development');
+	}
 	const baseDir = await fs.promises.mkdtemp(
 		path.join(os.tmpdir(), 'metadata-editor-')
 	);

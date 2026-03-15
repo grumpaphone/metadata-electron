@@ -5,33 +5,29 @@ import {
 	MirrorOrganizeLevel,
 	MirrorOrganizeField,
 	MirrorResult,
+	Wavedata,
 } from '../../types';
 import { VibrancyLayer } from './VibrancyLayer';
 
-// Styled Components
 const ModalOverlay = styled.div`
 	position: fixed;
-	top: 0;
-	left: 0;
-	right: 0;
-	bottom: 0;
+	top: 0; left: 0; right: 0; bottom: 0;
 	background: var(--modal-overlay);
 	display: flex;
 	justify-content: center;
 	align-items: center;
-	z-index: 1000;
+	z-index: 2000;
 `;
 
 const ModalContent = styled(VibrancyLayer)`
 	border: 1px solid var(--border-primary);
-	border-radius: 20px;
+	border-radius: 12px;
 	padding: 24px;
 	width: 600px;
 	max-height: 80vh;
 	overflow-y: auto;
 	color: var(--text-primary);
-	box-shadow: 0 28px 60px rgba(8, 16, 32, 0.45),
-		inset 0 1px 0 rgba(255, 255, 255, 0.12);
+	box-shadow: var(--shadow-md);
 `;
 
 const ModalHeader = styled.div`
@@ -56,19 +52,13 @@ const CloseButton = styled.button`
 	color: var(--text-muted);
 	font-size: 24px;
 	cursor: pointer;
-	padding: 0;
-	width: 32px;
-	height: 32px;
+	width: 32px; height: 32px;
 	display: flex;
 	align-items: center;
 	justify-content: center;
 	border-radius: 8px;
 	transition: all 0.2s ease;
-
-	&:hover {
-		background: rgba(140, 183, 255, 0.16);
-		color: var(--accent-primary);
-	}
+	&:hover { background: var(--fill-tertiary); color: var(--accent-primary); }
 `;
 
 const Section = styled.div`
@@ -92,66 +82,34 @@ const PathSelector = styled.div`
 const PathInput = styled.input`
 	flex: 1;
 	background: var(--input-bg);
-	border: 1px solid rgba(255, 255, 255, 0.18);
+	border: 1px solid var(--input-border);
 	color: var(--text-primary);
 	padding: 10px 14px;
-	border-radius: 12px;
+	border-radius: 6px;
 	font-size: 14px;
-	backdrop-filter: var(--glass-backdrop);
-	box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25);
-
-	&:focus {
-		outline: none;
-		border-color: rgba(140, 183, 255, 0.6);
-	}
-
-	&:read-only {
-		background: rgba(255, 255, 255, 0.08);
-		color: var(--text-muted);
-		cursor: not-allowed;
-	}
+	&:focus { outline: none; border-color: var(--accent-primary); }
+	&:read-only { background: var(--fill-tertiary); color: var(--text-muted); cursor: not-allowed; }
 `;
 
 const Button = styled.button<{ variant?: 'primary' | 'secondary' | 'danger' }>`
 	background: ${(props) =>
-		props.variant === 'danger'
-			? 'linear-gradient(145deg, rgba(255, 97, 97, 0.85) 0%, rgba(220, 53, 69, 0.82) 100%)'
-			: props.variant === 'secondary'
-			? 'linear-gradient(145deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.08) 100%)'
-			: 'linear-gradient(145deg, rgba(82, 156, 255, 0.95) 0%, rgba(40, 116, 255, 0.92) 100%)'};
-	color: ${(props) =>
-		props.variant === 'secondary' ? 'var(--text-secondary)' : '#fff'};
-	border: ${(props) =>
-		props.variant === 'secondary'
-			? '1px solid rgba(255, 255, 255, 0.18)'
-			: '1px solid rgba(255, 255, 255, 0.24)'};
+		props.variant === 'danger' ? 'var(--color-error)'
+		: props.variant === 'secondary' ? 'var(--fill-tertiary)'
+		: 'var(--accent-primary)'};
+	color: ${(props) => props.variant === 'secondary' ? 'var(--text-secondary)' : '#fff'};
+	border: 1px solid var(--border-secondary);
 	padding: 8px 16px;
-	border-radius: 12px;
+	border-radius: 6px;
 	cursor: pointer;
 	font-size: 14px;
 	font-weight: 500;
 	transition: all 0.2s ease;
-	box-shadow: ${(props) =>
-		props.variant === 'secondary'
-			? 'inset 0 1px 0 rgba(255, 255, 255, 0.2)'
-			: '0 12px 24px rgba(32, 78, 145, 0.28)'};
-
 	&:hover {
-		background: ${(props) =>
-			props.variant === 'danger'
-				? 'linear-gradient(145deg, rgba(255, 112, 112, 0.9) 0%, rgba(220, 53, 69, 0.9) 100%)'
-				: props.variant === 'secondary'
-				? 'linear-gradient(145deg, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0.12) 100%)'
-				: 'linear-gradient(145deg, rgba(112, 178, 255, 0.98) 0%, rgba(56, 129, 255, 0.96) 100%)'};
-		transform: translateY(-1px);
+		opacity: 0.9;
 	}
-
 	&:disabled {
-		background: rgba(255, 255, 255, 0.1);
-		color: var(--text-muted);
+		opacity: 0.35;
 		cursor: not-allowed;
-		box-shadow: none;
-		transform: none;
 	}
 `;
 
@@ -161,38 +119,27 @@ const OrganizeLevel = styled.div`
 	align-items: center;
 	margin-bottom: 8px;
 	padding: 12px;
-	background: rgba(255, 255, 255, 0.06);
-	border-radius: 12px;
-	border: 1px solid rgba(255, 255, 255, 0.12);
-	box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+	background: var(--fill-tertiary);
+	border-radius: 8px;
+	border: 1px solid var(--border-secondary);
 `;
 
 const Select = styled.select`
-	background: rgba(255, 255, 255, 0.08);
-	border: 1px solid rgba(255, 255, 255, 0.16);
+	background: var(--input-bg);
+	border: 1px solid var(--input-border);
 	color: var(--text-primary);
 	padding: 8px 12px;
-	border-radius: 10px;
+	border-radius: 6px;
 	font-size: 14px;
 	min-width: 140px;
-	backdrop-filter: var(--glass-backdrop);
-
-	&:focus {
-		outline: none;
-		border-color: rgba(140, 183, 255, 0.6);
-	}
-
-	option {
-		background: rgba(14, 28, 56, 0.92);
-		color: var(--text-primary);
-	}
+	&:focus { outline: none; border-color: var(--accent-primary); }
+	option { background: var(--bg-tertiary); color: var(--text-primary); }
 `;
 
 const LevelNumber = styled.div`
-	background: rgba(120, 173, 255, 0.9);
-	color: #03122c;
-	width: 24px;
-	height: 24px;
+	background: var(--accent-primary);
+	color: #fff;
+	width: 24px; height: 24px;
 	border-radius: 50%;
 	display: flex;
 	align-items: center;
@@ -200,11 +147,6 @@ const LevelNumber = styled.div`
 	font-size: 12px;
 	font-weight: 600;
 	flex-shrink: 0;
-`;
-
-const AddLevelButton = styled(Button)`
-	align-self: flex-start;
-	margin-top: 8px;
 `;
 
 const ModalFooter = styled.div`
@@ -223,9 +165,9 @@ const FileCountInfo = styled.div`
 `;
 
 const PreviewPath = styled.div`
-	background: rgba(255, 255, 255, 0.08);
-	border: 1px solid rgba(255, 255, 255, 0.15);
-	border-radius: 12px;
+	background: var(--fill-tertiary);
+	border: 1px solid var(--border-secondary);
+	border-radius: 8px;
 	padding: 12px;
 	font-family: 'Monaco', 'Menlo', monospace;
 	font-size: 12px;
@@ -237,31 +179,11 @@ const PreviewPath = styled.div`
 const ResultSection = styled.div`
 	margin-top: 16px;
 	padding: 16px;
-	border-radius: 12px;
-	background: rgba(255, 255, 255, 0.08);
-	border: 1px solid rgba(255, 255, 255, 0.12);
+	border-radius: 8px;
+	background: var(--fill-tertiary);
+	border: 1px solid var(--border-secondary);
 `;
 
-const SuccessMessage = styled.div`
-	color: rgba(46, 204, 113, 0.88);
-	font-weight: 500;
-	margin-bottom: 8px;
-`;
-
-const ErrorMessage = styled.div`
-	color: rgba(255, 99, 132, 0.92);
-	font-weight: 500;
-	margin-bottom: 8px;
-`;
-
-const ErrorList = styled.ul`
-	margin: 8px 0;
-	padding-left: 20px;
-	color: rgba(255, 120, 140, 0.9);
-	font-size: 13px;
-`;
-
-// Field Options
 const ORGANIZE_FIELDS: Array<{ value: MirrorOrganizeField; label: string }> = [
 	{ value: 'show', label: 'Show' },
 	{ value: 'scene', label: 'Scene' },
@@ -274,27 +196,20 @@ interface MirrorModalProps {
 	isOpen: boolean;
 	onClose: () => void;
 	selectedFiles: string[];
-	allFiles: any[]; // Wavedata[] but avoiding import issues
+	allFiles: Wavedata[];
 	totalFiles: number;
 }
 
 export const MirrorModal: React.FC<MirrorModalProps> = ({
-	isOpen,
-	onClose,
-	selectedFiles,
-	allFiles,
-	totalFiles,
+	isOpen, onClose, selectedFiles, allFiles, totalFiles,
 }) => {
 	const [destinationPath, setDestinationPath] = useState('');
-	const [organizeLevels, setOrganizeLevels] = useState<MirrorOrganizeLevel[]>([
-		{ field: 'show', order: 0 },
-	]);
+	const [organizeLevels, setOrganizeLevels] = useState<MirrorOrganizeLevel[]>([{ field: 'show', order: 0 }]);
 	const [isProcessing, setIsProcessing] = useState(false);
 	const [result, setResult] = useState<MirrorResult | null>(null);
 
 	const api = window.electronAPI;
 
-	// Reset state when modal opens/closes
 	useEffect(() => {
 		if (!isOpen) {
 			setDestinationPath('');
@@ -307,9 +222,7 @@ export const MirrorModal: React.FC<MirrorModalProps> = ({
 	const handleSelectDestination = useCallback(async () => {
 		try {
 			const path = await api.selectMirrorDestination();
-			if (path) {
-				setDestinationPath(path);
-			}
+			if (path) setDestinationPath(path);
 		} catch (error) {
 			console.error('Failed to select destination:', error);
 		}
@@ -317,80 +230,50 @@ export const MirrorModal: React.FC<MirrorModalProps> = ({
 
 	const handleAddLevel = useCallback(() => {
 		if (organizeLevels.length >= 4) return;
-
 		const usedFields = new Set(organizeLevels.map((l) => l.field));
-		const availableField = ORGANIZE_FIELDS.find(
-			(f) => !usedFields.has(f.value)
-		);
-
-		if (availableField) {
-			setOrganizeLevels((prev) => [
-				...prev,
-				{ field: availableField.value, order: prev.length },
-			]);
+		const available = ORGANIZE_FIELDS.find((f) => !usedFields.has(f.value));
+		if (available) {
+			setOrganizeLevels((prev) => [...prev, { field: available.value, order: prev.length }]);
 		}
 	}, [organizeLevels]);
 
 	const handleRemoveLevel = useCallback((index: number) => {
-		setOrganizeLevels((prev) =>
-			prev
-				.filter((_, i) => i !== index)
-				.map((level, i) => ({ ...level, order: i }))
-		);
+		setOrganizeLevels((prev) => prev.filter((_, i) => i !== index).map((l, i) => ({ ...l, order: i })));
 	}, []);
 
-	const handleChangeField = useCallback(
-		(index: number, field: MirrorOrganizeField) => {
-			setOrganizeLevels((prev) =>
-				prev.map((level, i) => (i === index ? { ...level, field } : level))
-			);
-		},
-		[]
-	);
+	const handleChangeField = useCallback((index: number, field: MirrorOrganizeField) => {
+		setOrganizeLevels((prev) => prev.map((l, i) => (i === index ? { ...l, field } : l)));
+	}, []);
 
 	const generatePreviewPath = useCallback(() => {
 		if (!destinationPath || organizeLevels.length === 0) return '';
-
-		// Use the first file as an example
-		const exampleFile =
-			selectedFiles.length > 0
-				? allFiles.find((f) => f.filePath === selectedFiles[0])
-				: allFiles[0];
-
-		if (!exampleFile) return '';
-
-		let path = destinationPath;
+		const example = selectedFiles.length > 0
+			? allFiles.find((f) => f.filePath === selectedFiles[0])
+			: allFiles[0];
+		if (!example) return '';
+		let p = destinationPath;
 		for (const level of organizeLevels) {
-			const value = exampleFile[level.field] || 'Misc';
-			path += `/${value}`;
+			p += `/${example[level.field as keyof Wavedata] || 'Misc'}`;
 		}
-		return `${path}/${exampleFile.filename}`;
+		return `${p}/${example.filename}`;
 	}, [destinationPath, organizeLevels, selectedFiles, allFiles]);
 
 	const handleMirror = useCallback(async () => {
 		if (!destinationPath || organizeLevels.length === 0) return;
-
 		setIsProcessing(true);
 		setResult(null);
-
 		try {
-			// First, update the main process with current files
 			await api.setCurrentFiles(allFiles);
-
 			const config: MirrorConfiguration = {
 				destinationPath,
 				organizeLevels,
 				selectedFiles: selectedFiles.length > 0 ? selectedFiles : undefined,
 			};
-
-			console.log('[MIRROR] Starting mirror with config:', config);
 			const mirrorResult = await api.mirrorFiles(config);
 			setResult(mirrorResult);
 		} catch (error) {
-			console.error('Mirror operation failed:', error);
 			setResult({
-				success: false,
-				copiedFiles: 0,
+				success: false, copiedFiles: 0,
 				errors: [{ filePath: 'GENERAL', error: String(error) }],
 				conflicts: [],
 			});
@@ -401,35 +284,25 @@ export const MirrorModal: React.FC<MirrorModalProps> = ({
 
 	if (!isOpen) return null;
 
-	const filesToProcess =
-		selectedFiles.length > 0 ? selectedFiles.length : totalFiles;
 	const usedFields = new Set(organizeLevels.map((l) => l.field));
-	const canAddLevel =
-		organizeLevels.length < 4 &&
-		ORGANIZE_FIELDS.some((f) => !usedFields.has(f.value));
+	const canAddLevel = organizeLevels.length < 4 && ORGANIZE_FIELDS.some((f) => !usedFields.has(f.value));
 
 	return (
 		<ModalOverlay onClick={onClose}>
-			<ModalContent intensity='strong' onClick={(e) => e.stopPropagation()}>
+			<ModalContent intensity="strong" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Mirror Files">
 				<ModalHeader>
 					<Title>Mirror Files</Title>
-					<CloseButton onClick={onClose}>×</CloseButton>
+					<CloseButton onClick={onClose} aria-label="Close">×</CloseButton>
 				</ModalHeader>
 
 				<FileCountInfo>
-					{selectedFiles.length > 0
-						? `Mirroring ${selectedFiles.length} selected files`
-						: `Mirroring all ${totalFiles} files`}
+					{selectedFiles.length > 0 ? `Mirroring ${selectedFiles.length} selected files` : `Mirroring all ${totalFiles} files`}
 				</FileCountInfo>
 
 				<Section>
 					<SectionTitle>Destination Directory</SectionTitle>
 					<PathSelector>
-						<PathInput
-							value={destinationPath}
-							placeholder='Select destination directory...'
-							readOnly
-						/>
+						<PathInput value={destinationPath} placeholder="Select destination directory..." readOnly />
 						<Button onClick={handleSelectDestination}>Browse</Button>
 					</PathSelector>
 				</Section>
@@ -439,40 +312,16 @@ export const MirrorModal: React.FC<MirrorModalProps> = ({
 					{organizeLevels.map((level, index) => (
 						<OrganizeLevel key={index}>
 							<LevelNumber>{index + 1}</LevelNumber>
-							<Select
-								value={level.field}
-								onChange={(e) =>
-									handleChangeField(
-										index,
-										e.target.value as MirrorOrganizeField
-									)
-								}>
-								{ORGANIZE_FIELDS.map((field) => (
-									<option key={field.value} value={field.value}>
-										{field.label}
-									</option>
-								))}
+							<Select value={level.field} onChange={(e) => handleChangeField(index, e.target.value as MirrorOrganizeField)}>
+								{ORGANIZE_FIELDS.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}
 							</Select>
-							{organizeLevels.length > 1 && (
-								<Button
-									variant='danger'
-									onClick={() => handleRemoveLevel(index)}>
-									Remove
-								</Button>
-							)}
+							{organizeLevels.length > 1 && <Button variant="danger" onClick={() => handleRemoveLevel(index)}>Remove</Button>}
 						</OrganizeLevel>
 					))}
-					{canAddLevel && (
-						<AddLevelButton onClick={handleAddLevel}>
-							+ Add Level
-						</AddLevelButton>
-					)}
-
+					{canAddLevel && <Button onClick={handleAddLevel} style={{ marginTop: '8px' }}>+ Add Level</Button>}
 					{generatePreviewPath() && (
 						<div>
-							<SectionTitle style={{ marginTop: '16px', marginBottom: '8px' }}>
-								Preview Path (example):
-							</SectionTitle>
+							<SectionTitle style={{ marginTop: '16px', marginBottom: '8px' }}>Preview Path:</SectionTitle>
 							<PreviewPath>{generatePreviewPath()}</PreviewPath>
 						</div>
 					)}
@@ -481,67 +330,27 @@ export const MirrorModal: React.FC<MirrorModalProps> = ({
 				{result && (
 					<ResultSection>
 						{result.success ? (
-							<SuccessMessage>
-								✅ Mirror completed successfully! Copied {result.copiedFiles}{' '}
-								files.
-							</SuccessMessage>
+							<div style={{ color: 'var(--color-success)', fontWeight: 500 }}>Mirror completed! Copied {result.copiedFiles} files.</div>
 						) : (
-							<ErrorMessage>
-								❌ Mirror failed with {result.errors.length} errors.
-							</ErrorMessage>
+							<div style={{ color: 'var(--color-error)', fontWeight: 500 }}>Mirror failed with {result.errors.length} errors.</div>
 						)}
-
 						{result.conflicts.length > 0 && (
-							<div>
-								<div
-									style={{
-										color: '#ffc107',
-										fontWeight: 500,
-										marginTop: '8px',
-									}}>
-									⚠️ {result.conflicts.length} files were skipped due to
-									conflicts:
-								</div>
-								<ErrorList>
-									{result.conflicts.map((conflict, i) => (
-										<li key={i}>{conflict.sourcePath}</li>
-									))}
-								</ErrorList>
+							<div style={{ color: 'var(--color-warning)', fontWeight: 500, marginTop: '8px' }}>
+								{result.conflicts.length} files skipped due to conflicts.
 							</div>
 						)}
-
 						{result.errors.length > 0 && (
-							<div>
-								<div
-									style={{
-										color: '#dc3545',
-										fontWeight: 500,
-										marginTop: '8px',
-									}}>
-									Errors:
-								</div>
-								<ErrorList>
-									{result.errors.map((error, i) => (
-										<li key={i}>
-											{error.filePath}: {error.error}
-										</li>
-									))}
-								</ErrorList>
-							</div>
+							<ul style={{ color: 'var(--color-error)', fontSize: '13px', paddingLeft: '20px' }}>
+								{result.errors.map((err, i) => <li key={i}>{err.filePath}: {err.error}</li>)}
+							</ul>
 						)}
 					</ResultSection>
 				)}
 
 				<ModalFooter>
-					<Button variant='secondary' onClick={onClose}>
-						{result ? 'Close' : 'Cancel'}
-					</Button>
+					<Button variant="secondary" onClick={onClose}>{result ? 'Close' : 'Cancel'}</Button>
 					{!result && (
-						<Button
-							onClick={handleMirror}
-							disabled={
-								!destinationPath || organizeLevels.length === 0 || isProcessing
-							}>
+						<Button onClick={handleMirror} disabled={!destinationPath || organizeLevels.length === 0 || isProcessing}>
 							{isProcessing ? 'Processing...' : 'Start Mirror'}
 						</Button>
 					)}

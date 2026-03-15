@@ -2,10 +2,9 @@ import { createWithEqualityFn } from 'zustand/traditional';
 import {
 	Wavedata,
 	AgentStatus,
-	UndoRedoCommand,
 	MetadataEditCommand,
-	BatchCommand,
 } from '../types';
+import { filterFiles } from './store/filterUtils';
 
 export interface LoadingProgress {
 	fileName: string;
@@ -62,10 +61,8 @@ export interface AppState {
 	files: Wavedata[];
 	originalFiles: Wavedata[];
 	audioDataCache: Map<string, ArrayBuffer>;
-	selectedIndices: number[];
 	loadingProgress: LoadingProgress | null;
 	agentStatuses: AgentStatus[];
-	activeFilePath: string | null;
 	isDirty: boolean;
 	isSaving: boolean;
 	isLoading: boolean;
@@ -105,7 +102,6 @@ export interface AppState {
 	setLoadingProgress: (progress: LoadingProgress | null) => void;
 	setAgentStatuses: (statuses: AgentStatus[]) => void;
 	getAgentStatus: (name: string) => AgentStatus | undefined;
-	setActiveFile: (filePath: string | null) => void;
 	saveAllChanges: () => Promise<void>;
 	setError: (error: string | null) => void;
 	clearError: () => void;
@@ -198,15 +194,45 @@ const saveSettingsToStorage = (settings: SettingsState) => {
 	}
 };
 
+// Column persistence
+const COLUMNS_STORAGE_KEY = 'metadata-editor-columns';
+
+interface ColumnPersistence {
+	visibility: ColumnVisibilityState;
+	order: ColumnKey[];
+}
+
+const loadColumnsFromStorage = (): ColumnPersistence => {
+	try {
+		const stored = localStorage.getItem(COLUMNS_STORAGE_KEY);
+		if (stored) {
+			const parsed = JSON.parse(stored) as Partial<ColumnPersistence>;
+			return {
+				visibility: { ...getDefaultColumnVisibility(), ...(parsed.visibility ?? {}) },
+				order: Array.isArray(parsed.order) ? parsed.order : getDefaultColumnOrder(),
+			};
+		}
+	} catch (error) {
+		console.warn('Failed to load column settings from localStorage:', error);
+	}
+	return { visibility: getDefaultColumnVisibility(), order: getDefaultColumnOrder() };
+};
+
+const saveColumnsToStorage = (visibility: ColumnVisibilityState, order: ColumnKey[]) => {
+	try {
+		localStorage.setItem(COLUMNS_STORAGE_KEY, JSON.stringify({ visibility, order }));
+	} catch (error) {
+		console.warn('Failed to save column settings to localStorage:', error);
+	}
+};
+
 export const useStore = createWithEqualityFn<AppState>(
 	(set, get) => ({
 		files: [],
 		originalFiles: [],
 		audioDataCache: new Map(),
-		selectedIndices: [],
 		loadingProgress: null,
 		agentStatuses: [],
-		activeFilePath: null,
 		isDirty: false,
 		isSaving: false,
 		isLoading: false,
@@ -217,8 +243,10 @@ export const useStore = createWithEqualityFn<AppState>(
 		searchField: 'all',
 		filteredFiles: [],
 		selectedRows: [],
-		columnVisibility: getDefaultColumnVisibility(),
-		columnOrder: getDefaultColumnOrder(),
+		...(() => {
+			const { visibility, order } = loadColumnsFromStorage();
+			return { columnVisibility: visibility, columnOrder: order };
+		})(),
 		audioPlayer: {
 			currentFile: null,
 			isPlaying: false,
@@ -273,41 +301,10 @@ export const useStore = createWithEqualityFn<AppState>(
 		setSearch: (searchText, searchField) => {
 			const state = get();
 			const newSearchField = searchField || state.searchField;
-			const lowercasedFilter = searchText.toLowerCase();
-
-			const filteredFiles = state.files.filter((file) => {
-				if (!lowercasedFilter) return true;
-
-				// If searching all fields, check multiple fields
-				if (newSearchField === 'all') {
-					const searchableFields = [
-						'filename',
-						'show',
-						'category',
-						'subcategory',
-						'scene',
-						'take',
-						'ixmlNote',
-					];
-					return searchableFields.some((field) => {
-						const fieldValue = file[field as keyof Wavedata] as string;
-						return String(fieldValue || '')
-							.toLowerCase()
-							.includes(lowercasedFilter);
-					});
-				}
-
-				// Otherwise search specific field
-				const fieldValue = file[newSearchField as keyof Wavedata] as string;
-				return String(fieldValue || '')
-					.toLowerCase()
-					.includes(lowercasedFilter);
-			});
-
 			set({
 				searchText,
 				searchField: newSearchField,
-				filteredFiles,
+				filteredFiles: filterFiles(state.files, searchText, newSearchField),
 			});
 		},
 
@@ -334,35 +331,7 @@ export const useStore = createWithEqualityFn<AppState>(
 				const newSelectedRows: number[] = [];
 
 				// Re-apply current search filter
-				const lowercasedFilter = state.searchText.toLowerCase();
-				const filteredFiles = newFiles.filter((file) => {
-					if (!lowercasedFilter) return true;
-
-					if (state.searchField === 'all') {
-						const searchableFields = [
-							'filename',
-							'show',
-							'category',
-							'subcategory',
-							'scene',
-							'take',
-							'ixmlNote',
-						];
-						return searchableFields.some((field) => {
-							const fieldValue = file[field as keyof Wavedata] as string;
-							return String(fieldValue || '')
-								.toLowerCase()
-								.includes(lowercasedFilter);
-						});
-					}
-
-					const fieldValue = file[
-						state.searchField as keyof Wavedata
-					] as string;
-					return String(fieldValue || '')
-						.toLowerCase()
-						.includes(lowercasedFilter);
-				});
+				const filteredFiles = filterFiles(newFiles, state.searchText, state.searchField);
 
 				// Handle audio player state if current file is removed
 				const currentFile = state.audioPlayer.currentFile;
@@ -418,42 +387,9 @@ export const useStore = createWithEqualityFn<AppState>(
 						: file
 				);
 
-				// Re-apply the current filter
-				const lowercasedFilter = state.searchText.toLowerCase();
-				const filteredFiles = newFiles.filter((file) => {
-					if (!lowercasedFilter) return true;
-
-					// If searching all fields, check multiple fields
-					if (state.searchField === 'all') {
-						const searchableFields = [
-							'filename',
-							'show',
-							'category',
-							'subcategory',
-							'scene',
-							'take',
-							'ixmlNote',
-						];
-						return searchableFields.some((field) => {
-							const fieldValue = file[field as keyof Wavedata] as string;
-							return String(fieldValue || '')
-								.toLowerCase()
-								.includes(lowercasedFilter);
-						});
-					}
-
-					// Otherwise search specific field
-					const fieldValue = file[
-						state.searchField as keyof Wavedata
-					] as string;
-					return String(fieldValue || '')
-						.toLowerCase()
-						.includes(lowercasedFilter);
-				});
-
 				return {
 					files: newFiles,
-					filteredFiles,
+					filteredFiles: filterFiles(newFiles, state.searchText, state.searchField),
 					isDirty: true,
 					history: newHistory,
 					historyIndex: newHistory.length - 1,
@@ -475,7 +411,11 @@ export const useStore = createWithEqualityFn<AppState>(
 						};
 					}
 				});
-				return { files: newFiles, isDirty: true };
+				return {
+					files: newFiles,
+					filteredFiles: filterFiles(newFiles, state.searchText, state.searchField),
+					isDirty: true,
+				};
 			}),
 
 		batchUpdateFromFilename: (updates) =>
@@ -492,41 +432,9 @@ export const useStore = createWithEqualityFn<AppState>(
 					return file;
 				});
 
-				const lowercasedFilter = state.searchText.toLowerCase();
-				const filteredFiles = updatedFiles.filter((file) => {
-					if (!lowercasedFilter) return true;
-
-					// If searching all fields, check multiple fields
-					if (state.searchField === 'all') {
-						const searchableFields = [
-							'filename',
-							'show',
-							'category',
-							'subcategory',
-							'scene',
-							'take',
-							'ixmlNote',
-						];
-						return searchableFields.some((field) => {
-							const fieldValue = file[field as keyof Wavedata] as string;
-							return String(fieldValue || '')
-								.toLowerCase()
-								.includes(lowercasedFilter);
-						});
-					}
-
-					// Otherwise search specific field
-					const fieldValue = file[
-						state.searchField as keyof Wavedata
-					] as string;
-					return String(fieldValue || '')
-						.toLowerCase()
-						.includes(lowercasedFilter);
-				});
-
 				return {
 					files: updatedFiles,
-					filteredFiles,
+					filteredFiles: filterFiles(updatedFiles, state.searchText, state.searchField),
 					isDirty: true,
 				};
 			}),
@@ -568,9 +476,6 @@ export const useStore = createWithEqualityFn<AppState>(
 			return get().agentStatuses.find((agent) => agent.name === name);
 		},
 
-		setActiveFile: (filePath: string | null) =>
-			set({ activeFilePath: filePath }),
-
 		saveAllChanges: async () => {
 			const { files, isDirty } = get();
 			if (!isDirty) return;
@@ -607,7 +512,7 @@ export const useStore = createWithEqualityFn<AppState>(
 
 		undo: () =>
 			set((state) => {
-				if (state.historyIndex < 0) return {}; // Nothing to undo
+				if (state.historyIndex < 0) return {};
 
 				const command = state.history[state.historyIndex];
 				const { filePath, field, oldValue } = command;
@@ -616,19 +521,9 @@ export const useStore = createWithEqualityFn<AppState>(
 					file.filePath === filePath ? { ...file, [field]: oldValue } : file
 				);
 
-				// Re-apply the current filter
-				const lowercasedFilter = state.searchText.toLowerCase();
-				const filteredFiles = newFiles.filter((file) => {
-					if (!lowercasedFilter) return true;
-					const fieldValue = file[
-						state.searchField as keyof Wavedata
-					] as string;
-					return String(fieldValue).toLowerCase().includes(lowercasedFilter);
-				});
-
 				return {
 					files: newFiles,
-					filteredFiles,
+					filteredFiles: filterFiles(newFiles, state.searchText, state.searchField),
 					historyIndex: state.historyIndex - 1,
 					isDirty: true,
 				};
@@ -636,7 +531,7 @@ export const useStore = createWithEqualityFn<AppState>(
 
 		redo: () =>
 			set((state) => {
-				if (state.historyIndex >= state.history.length - 1) return {}; // Nothing to redo
+				if (state.historyIndex >= state.history.length - 1) return {};
 
 				const command = state.history[state.historyIndex + 1];
 				const { filePath, field, newValue } = command;
@@ -645,19 +540,9 @@ export const useStore = createWithEqualityFn<AppState>(
 					file.filePath === filePath ? { ...file, [field]: newValue } : file
 				);
 
-				// Re-apply the current filter
-				const lowercasedFilter = state.searchText.toLowerCase();
-				const filteredFiles = newFiles.filter((file) => {
-					if (!lowercasedFilter) return true;
-					const fieldValue = file[
-						state.searchField as keyof Wavedata
-					] as string;
-					return String(fieldValue).toLowerCase().includes(lowercasedFilter);
-				});
-
 				return {
 					files: newFiles,
-					filteredFiles,
+					filteredFiles: filterFiles(newFiles, state.searchText, state.searchField),
 					historyIndex: state.historyIndex + 1,
 					isDirty: true,
 				};
@@ -761,11 +646,27 @@ export const useStore = createWithEqualityFn<AppState>(
 		setDuration: (duration) =>
 			set((state) => ({ audioPlayer: { ...state.audioPlayer, duration } })),
 
-		// Audio Data Cache Actions
+		// Audio Data Cache Actions (LRU eviction at ~500MB)
 		addAudioDataToCache: (filePath, data) =>
 			set((state) => {
 				const newCache = new Map(state.audioDataCache);
 				newCache.set(filePath, data);
+
+				// LRU eviction: remove oldest entries when cache exceeds ~500MB
+				const MAX_CACHE_BYTES = 500 * 1024 * 1024;
+				let totalSize = 0;
+				for (const [, buf] of newCache) totalSize += buf.byteLength;
+
+				if (totalSize > MAX_CACHE_BYTES) {
+					const keys = Array.from(newCache.keys());
+					for (const key of keys) {
+						if (key === filePath) continue; // Don't evict the one we just added
+						totalSize -= newCache.get(key)!.byteLength;
+						newCache.delete(key);
+						if (totalSize <= MAX_CACHE_BYTES) break;
+					}
+				}
+
 				return { audioDataCache: newCache };
 			}),
 
@@ -805,9 +706,9 @@ export const useStore = createWithEqualityFn<AppState>(
 		},
 
 		loadSettings: () => {
-			set((state) => ({
+			set({
 				settings: loadSettingsFromStorage(),
-			}));
+			});
 		},
 
 		saveSettings: () => {
@@ -817,18 +718,20 @@ export const useStore = createWithEqualityFn<AppState>(
 
 		// Column Visibility Actions
 		toggleColumnVisibility: (column: keyof ColumnVisibilityState) => {
-			set((state) => ({
-				columnVisibility: {
+			set((state) => {
+				const newVisibility = {
 					...state.columnVisibility,
 					[column]: !state.columnVisibility[column],
-				},
-			}));
+				};
+				saveColumnsToStorage(newVisibility, state.columnOrder);
+				return { columnVisibility: newVisibility };
+			});
 		},
 
 		resetColumnVisibility: () => {
-			set({
-				columnVisibility: getDefaultColumnVisibility(),
-			});
+			const defaultVis = getDefaultColumnVisibility();
+			saveColumnsToStorage(defaultVis, get().columnOrder);
+			set({ columnVisibility: defaultVis });
 		},
 
 		// Column Order Actions
@@ -837,14 +740,15 @@ export const useStore = createWithEqualityFn<AppState>(
 				const newOrder = [...state.columnOrder];
 				const [movedColumn] = newOrder.splice(fromIndex, 1);
 				newOrder.splice(toIndex, 0, movedColumn);
+				saveColumnsToStorage(state.columnVisibility, newOrder);
 				return { columnOrder: newOrder };
 			});
 		},
 
 		resetColumnOrder: () => {
-			set({
-				columnOrder: getDefaultColumnOrder(),
-			});
+			const defaultOrder = getDefaultColumnOrder();
+			saveColumnsToStorage(get().columnVisibility, defaultOrder);
+			set({ columnOrder: defaultOrder });
 		},
 	}),
 	Object.is

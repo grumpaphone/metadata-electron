@@ -90,29 +90,6 @@ export interface MetadataEditCommand extends UndoRedoCommand {
 	newValue: any;
 }
 
-export interface BatchCommand extends UndoRedoCommand {
-	commands: UndoRedoCommand[];
-}
-
-// Metadata analysis results for batch processing
-export interface MetadataAnalysis {
-	totalFiles: number;
-	processedFiles: number;
-	failedFiles: number;
-	fieldCoverage: Record<string, number>; // Field name to percentage coverage
-	shows: Set<string>;
-	scenes: Set<string>;
-	takes: Set<string>;
-	categories: Set<string>;
-	hasIXML: number;
-	hasBWF: number;
-	averageFileSize: number;
-	duplicateDetection: Array<{
-		sceneTake: string;
-		files: string[];
-	}>;
-}
-
 // Mirror feature types
 export type MirrorOrganizeField =
 	| 'show'
