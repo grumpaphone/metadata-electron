@@ -1,6 +1,7 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect } from 'react';
 import styled from '@emotion/styled';
 import { VibrancyLayer } from './VibrancyLayer';
+import { useFocusTrap } from '../utils/useFocusTrap';
 
 const DialogOverlay = styled.div`
 	position: fixed;
@@ -55,25 +56,25 @@ interface ErrorDialogProps {
 }
 
 export const ErrorDialog: React.FC<ErrorDialogProps> = ({ message, onClose }) => {
-	const closeRef = useRef<HTMLButtonElement>(null);
+	const trapRef = useFocusTrap(!!message);
 
 	useEffect(() => {
-		closeRef.current?.focus();
+		if (!message) return;
 		const handleEscape = (e: KeyboardEvent) => {
 			if (e.key === 'Escape') onClose();
 		};
 		document.addEventListener('keydown', handleEscape);
 		return () => document.removeEventListener('keydown', handleEscape);
-	}, [onClose]);
+	}, [message, onClose]);
 
 	if (!message) return null;
 
 	return (
 		<DialogOverlay onClick={onClose}>
-			<DialogContent intensity="strong" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Error">
+			<DialogContent ref={trapRef} intensity="strong" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Error">
 				<Title>Error</Title>
 				<Message>{message}</Message>
-				<CloseButton ref={closeRef} onClick={onClose}>Close</CloseButton>
+				<CloseButton onClick={onClose}>Close</CloseButton>
 			</DialogContent>
 		</DialogOverlay>
 	);

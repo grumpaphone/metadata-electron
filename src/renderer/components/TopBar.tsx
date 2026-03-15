@@ -329,6 +329,7 @@ export const TopBar: React.FC<TopBarProps> = ({
 }) => {
 	const [isFilterOpen, setFilterOpen] = useState(false);
 	const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
+	const [focusedIndex, setFocusedIndex] = useState(-1);
 	const filterContainerRef = useRef<HTMLDivElement>(null);
 
 	const calculateDropdownPosition = useCallback(() => {
@@ -339,9 +340,37 @@ export const TopBar: React.FC<TopBarProps> = ({
 	}, []);
 
 	const handleDropdownToggle = useCallback(() => {
-		if (!isFilterOpen) calculateDropdownPosition();
+		if (!isFilterOpen) {
+			calculateDropdownPosition();
+			setFocusedIndex(SEARCH_OPTIONS.findIndex((o) => o.value === searchField));
+		}
 		setFilterOpen(!isFilterOpen);
-	}, [isFilterOpen, calculateDropdownPosition]);
+	}, [isFilterOpen, calculateDropdownPosition, searchField]);
+
+	const handleDropdownKeyDown = useCallback((e: React.KeyboardEvent) => {
+		if (!isFilterOpen) return;
+		switch (e.key) {
+			case 'ArrowDown':
+				e.preventDefault();
+				setFocusedIndex((i) => Math.min(i + 1, SEARCH_OPTIONS.length - 1));
+				break;
+			case 'ArrowUp':
+				e.preventDefault();
+				setFocusedIndex((i) => Math.max(i - 1, 0));
+				break;
+			case 'Enter':
+				e.preventDefault();
+				if (focusedIndex >= 0 && focusedIndex < SEARCH_OPTIONS.length) {
+					onSearchFieldChange(searchText, SEARCH_OPTIONS[focusedIndex].value);
+					setFilterOpen(false);
+				}
+				break;
+			case 'Escape':
+				e.preventDefault();
+				setFilterOpen(false);
+				break;
+		}
+	}, [isFilterOpen, focusedIndex, onSearchFieldChange, searchText]);
 
 	return (
 		<UnifiedTopBar>
@@ -368,21 +397,32 @@ export const TopBar: React.FC<TopBarProps> = ({
 
 			<RightSection>
 				<TooltipButton onClick={onOpenSettings} tooltip="Settings">⚙️</TooltipButton>
-				<SearchContainer ref={filterContainerRef}>
+				<SearchContainer ref={filterContainerRef} onKeyDown={handleDropdownKeyDown}>
 					<SearchInput
 						type="text"
 						placeholder={searchField === 'all' ? 'Search' : `Search ${SEARCH_OPTIONS.find((o) => o.value === searchField)?.label || 'Filename'}...`}
 						value={searchText}
 						onChange={(e) => onSearchChange(e.target.value)}
+						aria-label="Search files"
 					/>
-					<DropdownArrow isOpen={isFilterOpen} onClick={handleDropdownToggle} title="Select search field" />
+					<DropdownArrow
+						isOpen={isFilterOpen}
+						onClick={handleDropdownToggle}
+						title="Select search field"
+						role="button"
+						aria-haspopup="listbox"
+						aria-expanded={isFilterOpen}
+					/>
 					{isFilterOpen &&
 						createPortal(
-							<DropdownMenu top={dropdownPosition.top} left={dropdownPosition.left}>
-								{SEARCH_OPTIONS.map((option) => (
+							<DropdownMenu top={dropdownPosition.top} left={dropdownPosition.left} role="listbox" aria-label="Search field">
+								{SEARCH_OPTIONS.map((option, idx) => (
 									<DropdownItem
 										key={option.value}
 										isSelected={searchField === option.value}
+										role="option"
+										aria-selected={searchField === option.value}
+										style={idx === focusedIndex ? { background: 'rgba(120, 173, 255, 0.2)' } : undefined}
 										onClick={() => {
 											onSearchFieldChange(searchText, option.value);
 											setFilterOpen(false);

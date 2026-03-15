@@ -25,6 +25,7 @@ import { WaveSurferController } from './audio/WaveSurferController';
 import { MetadataTableRow } from './components/table/MetadataTableRow';
 import { KeyboardShortcutsModal } from './components/KeyboardShortcuts';
 import { AgentStatusBar } from './components/AgentStatusBar';
+import { ProgressBar } from './components/ProgressBar';
 import { throttle } from './utils/throttle';
 
 const basename = (p: string) => p.split(/[\\/]/).pop() || '';
@@ -230,7 +231,6 @@ export const App: React.FC = () => {
 	);
 
 	// Stable ref to store actions — Zustand's getState() action functions are stable
-	// eslint-disable-next-line react-hooks/exhaustive-deps
 	const storeActions = useMemo(() => useStore.getState(), []);
 
 	const [dragCounter, setDragCounter] = useState(0);
@@ -301,8 +301,40 @@ export const App: React.FC = () => {
 		const unsubAutoSave = api.onAutoSaveRequest(() => {
 			storeActions.saveAllChanges();
 		});
-		return () => { unsubProgress?.(); unsubStatus?.(); unsubAutoSave?.(); };
+		const unsubFileChanged = api.onFileChanged(async (changedPath: string) => {
+			// Re-read metadata for externally changed files
+			const currentFiles = useStore.getState().files;
+			const matchingFile = currentFiles.find((f) => f.filePath === changedPath);
+			if (matchingFile) {
+				try {
+					const updated = await api.readMetadata(changedPath);
+					if (updated) {
+						storeActions.batchUpdateMetadata([{ filePath: changedPath, data: updated }]);
+					}
+				} catch (err) {
+					console.warn(`Failed to re-read externally changed file: ${changedPath}`, err);
+				}
+			}
+		});
+		return () => { unsubProgress?.(); unsubStatus?.(); unsubAutoSave?.(); unsubFileChanged?.(); };
 	}, [apiReady, api, storeActions]);
+
+	// Shared directory open logic (used by keyboard shortcuts and TopBar)
+	const openDirectoryViaDialog = useCallback(async () => {
+		if (!api) return;
+		const result = await api.showOpenDialog();
+		if (result && !result.canceled && result.filePaths.length > 0) {
+			try {
+				storeActions.setIsLoading(true);
+				const loadedFiles = await api.scanDirectory(result.filePaths[0]);
+				storeActions.setFiles(loadedFiles);
+			} catch (err) {
+				storeActions.setError(`Failed to load directory: ${(err as Error).message}`);
+			} finally {
+				storeActions.setIsLoading(false);
+			}
+		}
+	}, [api, storeActions]);
 
 	// Keyboard shortcuts
 	useEffect(() => {
@@ -312,7 +344,7 @@ export const App: React.FC = () => {
 				switch (event.key.toLowerCase()) {
 					case 'z': event.preventDefault(); event.shiftKey ? storeActions.redo() : storeActions.undo(); return;
 					case 's': event.preventDefault(); storeActions.saveAllChanges(); return;
-					case 'o': event.preventDefault(); handleOpenDirectory(); return;
+					case 'o': event.preventDefault(); openDirectoryViaDialog(); return;
 					case 'm': event.preventDefault(); if (files.length > 0) setIsMirrorModalOpen(true); return;
 					case 'e': event.preventDefault(); if (files.length > 0) setIsMappingModalOpen(true); return;
 					case '/': event.preventDefault(); setIsShortcutsModalOpen(true); return;
@@ -321,7 +353,24 @@ export const App: React.FC = () => {
 			const activeEl = document.activeElement;
 			const isTyping = activeEl?.tagName === 'INPUT' || activeEl?.tagName === 'TEXTAREA';
 			if (isTyping) return;
+			const fileCount = searchText ? filteredFiles.length : files.length;
 			switch (event.key) {
+				case 'ArrowDown':
+					event.preventDefault();
+					if (fileCount > 0) {
+						const current = selectedRows.length > 0 ? selectedRows[selectedRows.length - 1] : -1;
+						const next = Math.min(current + 1, fileCount - 1);
+						storeActions.selectFile(next, false, event.shiftKey);
+					}
+					break;
+				case 'ArrowUp':
+					event.preventDefault();
+					if (fileCount > 0) {
+						const current = selectedRows.length > 0 ? selectedRows[0] : fileCount;
+						const prev = Math.max(current - 1, 0);
+						storeActions.selectFile(prev, false, event.shiftKey);
+					}
+					break;
 				case ' ':
 					event.preventDefault();
 					if (selectedRows.length > 0) {
@@ -342,7 +391,7 @@ export const App: React.FC = () => {
 		};
 		document.addEventListener('keydown', handleKeyDown);
 		return () => document.removeEventListener('keydown', handleKeyDown);
-	}, [files, selectedRows, currentFile, storeActions]);
+	}, [files, filteredFiles, searchText, selectedRows, currentFile, storeActions, openDirectoryViaDialog]);
 
 	// Scroll tracking
 	useEffect(() => {
@@ -368,21 +417,7 @@ export const App: React.FC = () => {
 		return () => document.removeEventListener('mousedown', handler);
 	}, [contextMenu, columnContextMenu]);
 
-	const handleOpenDirectory = useCallback(async () => {
-		if (!api) return;
-		const result = await api.showOpenDialog();
-		if (result && !result.canceled && result.filePaths.length > 0) {
-			try {
-				storeActions.setIsLoading(true);
-				const loadedFiles = await api.scanDirectory(result.filePaths[0]);
-				storeActions.setFiles(loadedFiles);
-			} catch (err) {
-				storeActions.setError(`Failed to load directory: ${(err as Error).message}`);
-			} finally {
-				storeActions.setIsLoading(false);
-			}
-		}
-	}, [api, storeActions]);
+	const handleOpenDirectory = openDirectoryViaDialog;
 
 	const handleDrop = useCallback(async (e: React.DragEvent<HTMLDivElement>) => {
 		e.preventDefault();
@@ -393,19 +428,30 @@ export const App: React.FC = () => {
 		try {
 			const droppedItems = Array.from(e.dataTransfer.files);
 			const filesToAdd: Wavedata[] = [];
+			const errors: string[] = [];
 			for (const item of droppedItems) {
-				const itemPath = api.getPathForFile(item);
-				const isDirectory = await api.checkIsDirectory(itemPath);
-				if (isDirectory) {
-					filesToAdd.push(...(await api.scanDirectory(itemPath)));
-				} else if (item.name.toLowerCase().endsWith('.wav')) {
-					const wavedata = await api.readMetadata(itemPath);
-					if (wavedata) filesToAdd.push(wavedata);
+				try {
+					const itemPath = api.getPathForFile(item);
+					const isDirectory = await api.checkIsDirectory(itemPath);
+					if (isDirectory) {
+						filesToAdd.push(...(await api.scanDirectory(itemPath)));
+					} else if (item.name.toLowerCase().endsWith('.wav')) {
+						const wavedata = await api.readMetadata(itemPath);
+						if (wavedata) filesToAdd.push(wavedata);
+					}
+				} catch (err) {
+					errors.push(`${item.name}: ${(err as Error).message}`);
 				}
 			}
 			const existingPaths = new Set(files.map((f) => f.filePath));
 			const newFiles = filesToAdd.filter((f) => !existingPaths.has(f.filePath));
 			if (newFiles.length > 0) storeActions.addFiles(newFiles);
+			if (errors.length > 0) {
+				const loaded = filesToAdd.length;
+				storeActions.setError(
+					`Loaded ${loaded} file${loaded !== 1 ? 's' : ''}, but ${errors.length} failed:\n${errors.join('\n')}`
+				);
+			}
 		} catch (err) {
 			storeActions.setError(`Error processing dropped files: ${(err as Error).message}`);
 		} finally {
@@ -538,9 +584,15 @@ export const App: React.FC = () => {
 				onFontSizeChange={storeActions.setFontSize}
 				showTooltips={settings.showTooltips}
 				onTooltipsToggle={storeActions.toggleTooltips}
+				fileWatcherActive={useStore.getState().agentStatuses.some((a) => a.name === 'file-watcher' && a.active)}
+				onFileWatcherToggle={() => {
+					const watcher = useStore.getState().agentStatuses.find((a) => a.name === 'file-watcher');
+					api?.toggleAgent('file-watcher', !watcher?.active).catch(console.error);
+				}}
 			/>
 
 			{dragCounter > 0 && <DragOverlay />}
+			<ProgressBar />
 
 			<TopBar
 				searchText={searchText}

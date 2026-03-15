@@ -203,19 +203,33 @@ interface ColumnPersistence {
 }
 
 const loadColumnsFromStorage = (): ColumnPersistence => {
+	const defaults = { visibility: getDefaultColumnVisibility(), order: getDefaultColumnOrder() };
 	try {
 		const stored = localStorage.getItem(COLUMNS_STORAGE_KEY);
 		if (stored) {
 			const parsed = JSON.parse(stored) as Partial<ColumnPersistence>;
-			return {
-				visibility: { ...getDefaultColumnVisibility(), ...(parsed.visibility ?? {}) },
-				order: Array.isArray(parsed.order) ? parsed.order : getDefaultColumnOrder(),
-			};
+			const visibility = { ...defaults.visibility, ...(parsed.visibility ?? {}) };
+
+			// Validate that the persisted order contains exactly the expected keys
+			const expectedKeys = new Set(defaults.order);
+			let order = defaults.order;
+			if (Array.isArray(parsed.order)) {
+				const parsedSet = new Set(parsed.order);
+				const hasAllKeys = defaults.order.every((k) => parsedSet.has(k));
+				const noExtraKeys = parsed.order.every((k: string) => expectedKeys.has(k as ColumnKey));
+				if (hasAllKeys && noExtraKeys && parsed.order.length === defaults.order.length) {
+					order = parsed.order;
+				} else {
+					console.warn('Column order in localStorage is stale, resetting to defaults');
+				}
+			}
+
+			return { visibility, order };
 		}
 	} catch (error) {
 		console.warn('Failed to load column settings from localStorage:', error);
 	}
-	return { visibility: getDefaultColumnVisibility(), order: getDefaultColumnOrder() };
+	return defaults;
 };
 
 const saveColumnsToStorage = (visibility: ColumnVisibilityState, order: ColumnKey[]) => {
@@ -284,7 +298,7 @@ export const useStore = createWithEqualityFn<AppState>(
 		},
 
 		setFiles: (files) => {
-			const deepCopiedFiles = JSON.parse(JSON.stringify(files));
+			const deepCopiedFiles = structuredClone(files);
 			set({
 				files,
 				originalFiles: deepCopiedFiles,
@@ -494,7 +508,7 @@ export const useStore = createWithEqualityFn<AppState>(
 					isSaving: false,
 					isDirty: false,
 					files: state.files.map((f) => ({ ...f, lastModified: undefined })),
-					originalFiles: JSON.parse(JSON.stringify(state.files)),
+					originalFiles: structuredClone(state.files),
 				}));
 			} catch (error) {
 				console.error('Failed to save changes:', error);
@@ -646,21 +660,21 @@ export const useStore = createWithEqualityFn<AppState>(
 		setDuration: (duration) =>
 			set((state) => ({ audioPlayer: { ...state.audioPlayer, duration } })),
 
-		// Audio Data Cache Actions (LRU eviction at ~500MB)
+		// Audio Data Cache Actions (FIFO eviction at ~500MB)
 		addAudioDataToCache: (filePath, data) =>
 			set((state) => {
 				const newCache = new Map(state.audioDataCache);
 				newCache.set(filePath, data);
 
-				// LRU eviction: remove oldest entries when cache exceeds ~500MB
 				const MAX_CACHE_BYTES = 500 * 1024 * 1024;
 				let totalSize = 0;
 				for (const [, buf] of newCache) totalSize += buf.byteLength;
 
 				if (totalSize > MAX_CACHE_BYTES) {
+					const currentlyPlaying = state.audioPlayer.currentFile?.filePath;
 					const keys = Array.from(newCache.keys());
 					for (const key of keys) {
-						if (key === filePath) continue; // Don't evict the one we just added
+						if (key === filePath || key === currentlyPlaying) continue;
 						totalSize -= newCache.get(key)!.byteLength;
 						newCache.delete(key);
 						if (totalSize <= MAX_CACHE_BYTES) break;

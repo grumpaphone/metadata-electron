@@ -106,10 +106,12 @@ export class MetadataService {
 			throw error;
 		} finally {
 			try {
-				await fs.promises.access(backupPath);
 				await fs.promises.unlink(backupPath);
-			} catch {
-				// Backup already cleaned up or doesn't exist
+			} catch (cleanupError: unknown) {
+				const code = (cleanupError as NodeJS.ErrnoException)?.code;
+				if (code !== 'ENOENT') {
+					console.warn(`Failed to clean up backup file ${backupPath}:`, cleanupError);
+				}
 			}
 		}
 	}

@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import styled from '@emotion/styled';
 import { VibrancyLayer } from './VibrancyLayer';
+import { useFocusTrap } from '../utils/useFocusTrap';
 
 const ModalOverlay = styled.div`
 	position: fixed;
@@ -82,6 +83,8 @@ interface KeyboardShortcutsModalProps {
 }
 
 export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({ isOpen, onClose }) => {
+	const trapRef = useFocusTrap(isOpen);
+
 	useEffect(() => {
 		if (!isOpen) return;
 		const handleEscape = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -93,7 +96,7 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({ 
 
 	return (
 		<ModalOverlay onClick={onClose}>
-			<ModalContent intensity="strong" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Keyboard Shortcuts">
+			<ModalContent ref={trapRef} intensity="strong" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Keyboard Shortcuts">
 				<Title>Keyboard Shortcuts</Title>
 				<ShortcutList>
 					<ShortcutItem><ShortcutLabel>Undo</ShortcutLabel><Key>Cmd/Ctrl + Z</Key></ShortcutItem>

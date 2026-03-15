@@ -142,10 +142,11 @@ export const AudioPlayer: React.FC = () => {
 			if (audioData) {
 				useStore.getState().setWaveformReady(false);
 				currentFilePathRef.current = currentFile.filePath;
-				controller.loadBlob(audioData, isPlaying);
+				const shouldAutoPlay = useStore.getState().audioPlayer.isPlaying;
+				controller.loadBlob(audioData, shouldAutoPlay);
 			}
 		}
-	}, [currentFile?.filePath, isLoading, isPlaying]);
+	}, [currentFile?.filePath, isLoading]);
 
 	// Handle play/pause state changes
 	useEffect(() => {

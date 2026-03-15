@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import styled from '@emotion/styled';
 import {
 	MirrorConfiguration,
@@ -8,6 +8,7 @@ import {
 	Wavedata,
 } from '../../types';
 import { VibrancyLayer } from './VibrancyLayer';
+import { useFocusTrap } from '../utils/useFocusTrap';
 
 const ModalOverlay = styled.div`
 	position: fixed;
@@ -282,6 +283,15 @@ export const MirrorModal: React.FC<MirrorModalProps> = ({
 		}
 	}, [destinationPath, organizeLevels, selectedFiles, allFiles, api]);
 
+	const trapRef = useFocusTrap(isOpen);
+
+	useEffect(() => {
+		if (!isOpen) return;
+		const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+		document.addEventListener('keydown', handler);
+		return () => document.removeEventListener('keydown', handler);
+	}, [isOpen, onClose]);
+
 	if (!isOpen) return null;
 
 	const usedFields = new Set(organizeLevels.map((l) => l.field));
@@ -289,7 +299,7 @@ export const MirrorModal: React.FC<MirrorModalProps> = ({
 
 	return (
 		<ModalOverlay onClick={onClose}>
-			<ModalContent intensity="strong" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Mirror Files">
+			<ModalContent ref={trapRef} intensity="strong" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Mirror Files">
 				<ModalHeader>
 					<Title>Mirror Files</Title>
 					<CloseButton onClick={onClose} aria-label="Close">×</CloseButton>

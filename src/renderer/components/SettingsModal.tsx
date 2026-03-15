@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import styled from '@emotion/styled';
 import { VibrancyLayer } from './VibrancyLayer';
+import { useFocusTrap } from '../utils/useFocusTrap';
 
 const ModalOverlay = styled.div`
 	position: fixed;
@@ -164,17 +165,29 @@ interface SettingsModalProps {
 	onFontSizeChange: (size: string) => void;
 	showTooltips: boolean;
 	onTooltipsToggle: () => void;
+	fileWatcherActive?: boolean;
+	onFileWatcherToggle?: () => void;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
 	isOpen, onClose, isDarkMode, onThemeToggle,
 	fontSize, onFontSizeChange, showTooltips, onTooltipsToggle,
+	fileWatcherActive, onFileWatcherToggle,
 }) => {
+	const trapRef = useFocusTrap(isOpen);
+
+	useEffect(() => {
+		if (!isOpen) return;
+		const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+		document.addEventListener('keydown', handler);
+		return () => document.removeEventListener('keydown', handler);
+	}, [isOpen, onClose]);
+
 	if (!isOpen) return null;
 
 	return (
 		<ModalOverlay onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-			<ModalContent intensity="strong" role="dialog" aria-modal="true" aria-label="Settings">
+			<ModalContent ref={trapRef} intensity="strong" role="dialog" aria-modal="true" aria-label="Settings">
 				<ModalHeader>
 					<Title>Settings</Title>
 					<CloseButton onClick={onClose} aria-label="Close settings">×</CloseButton>
@@ -190,6 +203,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 						<Toggle enabled={showTooltips} onClick={onTooltipsToggle} aria-label="Toggle tooltips" />
 					</SettingRow>
 				</Section>
+
+				{onFileWatcherToggle && (
+					<Section>
+						<SectionTitle>File Watching</SectionTitle>
+						<SettingRow>
+							<div>
+								<SettingLabel>Watch for external changes</SettingLabel>
+								<SettingDescription>Auto-refresh metadata when files are modified by other apps</SettingDescription>
+							</div>
+							<Toggle enabled={!!fileWatcherActive} onClick={onFileWatcherToggle} aria-label="Toggle file watcher" />
+						</SettingRow>
+					</Section>
+				)}
 
 				<Section>
 					<SectionTitle>Appearance</SectionTitle>

@@ -28,22 +28,6 @@ let fileWatcherLastEvent: Date | null = null;
 let fileWatcherError: string | null = null;
 
 const createWindow = () => {
-	console.log('[MAIN] Creating window...');
-	console.log('[MAIN] Preload path:', MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY);
-	console.log('[MAIN] Renderer path:', MAIN_WINDOW_WEBPACK_ENTRY);
-	console.log(
-		'[MAIN] Preload file exists:',
-		fs.existsSync(MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY)
-	);
-
-	// Additional debugging
-	try {
-		const stats = fs.statSync(MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY);
-		console.log('[MAIN] Preload file size:', stats.size, 'bytes');
-	} catch (error) {
-		console.error('[MAIN] Error checking preload file:', error);
-	}
-
 	mainWindow = new BrowserWindow({
 		height: 800,
 		width: 1200,
@@ -74,43 +58,9 @@ const createWindow = () => {
 
 	// Ensure no vibrancy is applied; we want an opaque window
 
-	// Listen for console messages from the renderer process
-	mainWindow.webContents.on(
-		'console-message',
-		(event, level, message, line, sourceId) => {
-			const levelMap: Record<number, string> = {
-				0: 'INFO',
-				1: 'WARN',
-				2: 'ERROR',
-				3: 'DEBUG',
-			};
-			const logLevel = levelMap[level] || 'LOG';
-			console.log(`[RENDERER-${logLevel}] ${message}`);
-		}
-	);
-
-	// Listen for when the renderer is ready
-	mainWindow.webContents.once('did-finish-load', () => {
-		console.log('[MAIN] Renderer finished loading');
-		// Check if preload worked by evaluating window.electronAPI
-		mainWindow.webContents
-			.executeJavaScript('!!window.electronAPI')
-			.then((hasAPI) => {
-				console.log('[MAIN] electronAPI available in renderer:', hasAPI);
-			})
-			.catch((err) => {
-				console.error('[MAIN] Failed to check electronAPI:', err);
-			});
-	});
-
-	// Listen for preload script errors
+	// Log preload errors for debugging
 	mainWindow.webContents.on('preload-error', (event, preloadPath, error) => {
 		console.error('[MAIN] Preload script error:', preloadPath, error);
-	});
-
-	// Listen for when DOM is ready
-	mainWindow.webContents.once('dom-ready', () => {
-		console.log('[MAIN] DOM ready');
 	});
 
 	mainWindow.loadURL(MAIN_WINDOW_WEBPACK_ENTRY);
@@ -240,12 +190,8 @@ ipcMain.handle(CHANNELS.windowToggleFullscreen, async () => {
 });
 
 ipcMain.handle(CHANNELS.readMetadata, async (event, filePath: string) => {
-	console.log('[MAIN] readMetadata called for:', filePath);
 	try {
-		const result = await metadataService.readMetadata(filePath);
-		console.log('[MAIN] readMetadata successful for:', filePath);
-		console.log('[MAIN] metadata result:', result);
-		return result;
+		return await metadataService.readMetadata(filePath);
 	} catch (error) {
 		console.error('[MAIN] readMetadata failed for:', filePath, error);
 		throw error;
@@ -321,15 +267,15 @@ ipcMain.handle(CHANNELS.scanDirectory, async (event, dirPath: string) => {
 		return wavedata;
 	} catch (error) {
 		console.error(`Failed to scan directory ${dirPath}:`, error);
-		return []; // Return empty array on error
+		throw new Error(
+			`Failed to scan directory "${dirPath}": ${error instanceof Error ? error.message : String(error)}`
+		);
 	}
 });
 
 ipcMain.handle(CHANNELS.loadAudioFile, async (event, filePath: string) => {
 	try {
-		console.log('[MAIN] Loading audio file:', filePath);
 		const buffer = await fs.promises.readFile(filePath);
-		console.log('[MAIN] Audio file loaded successfully, size:', buffer.length);
 		const arrayBuffer = buffer.buffer.slice(
 			buffer.byteOffset,
 			buffer.byteOffset + buffer.byteLength
@@ -393,6 +339,9 @@ ipcMain.handle(CHANNELS.checkIsDirectory, async (event, filePath: string) => {
 		const stats = await fs.promises.stat(filePath);
 		return stats.isDirectory();
 	} catch (error) {
+		const code = (error as NodeJS.ErrnoException)?.code;
+		if (code === 'ENOENT') return false; // File doesn't exist — not a directory
+		console.error(`Failed to check if "${filePath}" is a directory:`, error);
 		return false;
 	}
 });
@@ -581,21 +530,13 @@ ipcMain.handle(CHANNELS.batchUpdateMetadata, async (event, updates) => {
 ipcMain.handle(
 	CHANNELS.batchExtractMetadata,
 	async (event, filePaths: string[]) => {
-		console.log('[IPC] Received batchExtractMetadata request for:', filePaths);
-		const results = filePaths.map((filePath) => {
-			const filename = path.basename(filePath);
-			const parsedData = filenameParser.parse(filename);
-			if (parsedData) {
-				return {
-					...parsedData,
-					filePath,
-				};
-			}
-			return null;
-		});
-		const finalResults = results.filter((r) => r !== null);
-		console.log('[IPC] Sending back extracted data:', finalResults);
-		return finalResults;
+		return filePaths
+			.map((filePath) => {
+				const filename = path.basename(filePath);
+				const parsedData = filenameParser.parse(filename);
+				return parsedData ? { ...parsedData, filePath } : null;
+			})
+			.filter((r) => r !== null);
 	}
 );
 
@@ -651,17 +592,13 @@ let currentFiles: Wavedata[] = [];
 
 ipcMain.handle(CHANNELS.setCurrentFiles, async (event, files: Wavedata[]) => {
 	currentFiles = files;
-	console.log('[MAIN] Current files updated, count:', files.length);
 });
 
 ipcMain.handle(
 	CHANNELS.mirrorFiles,
 	async (event, config: MirrorConfiguration) => {
-		console.log('[MAIN] Mirror files requested with config:', config);
 		try {
-			const result = await mirrorService.mirrorFiles(config, currentFiles);
-			console.log('[MAIN] Mirror operation completed:', result);
-			return result;
+			return await mirrorService.mirrorFiles(config, currentFiles);
 		} catch (error) {
 			console.error('[MAIN] Mirror operation failed:', error);
 			throw error;
@@ -672,18 +609,8 @@ ipcMain.handle(
 ipcMain.handle(
 	CHANNELS.checkFileConflicts,
 	async (event, config: MirrorConfiguration) => {
-		console.log('[MAIN] Check file conflicts requested');
 		try {
-			const conflicts = await mirrorService.checkFileConflicts(
-				config,
-				currentFiles
-			);
-			console.log(
-				'[MAIN] File conflicts check completed:',
-				conflicts.length,
-				'conflicts found'
-			);
-			return conflicts;
+			return await mirrorService.checkFileConflicts(config, currentFiles);
 		} catch (error) {
 			console.error('[MAIN] File conflicts check failed:', error);
 			throw error;
@@ -691,19 +618,11 @@ ipcMain.handle(
 	}
 );
 
-// Debug helper to forward renderer logs to main console
 ipcMain.handle(
 	CHANNELS.debugLog,
-	async (event, message: string, data?: any) => {
-		console.log(
-			`[RENDERER-DEBUG] ${message}`,
-			data ? JSON.stringify(data, null, 2) : ''
-		);
+	async (event, message: string, data?: unknown) => {
+		if (!app.isPackaged) {
+			console.log(`[RENDERER-DEBUG] ${message}`, data ?? '');
+		}
 	}
 );
-
-// Progress and agent status will be updated when real operations occur
-// No dummy periodic updates needed
-
-// In this file you can include the rest of your app's specific main process
-// code. You can also put them in separate files and import them here.

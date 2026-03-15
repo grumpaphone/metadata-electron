@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import styled from '@emotion/styled';
 import { VibrancyLayer } from './VibrancyLayer';
+import { useFocusTrap } from '../utils/useFocusTrap';
 
 const ModalOverlay = styled.div`
 	position: fixed;
@@ -102,6 +103,7 @@ export const FilenameMappingModal: React.FC<FilenameMappingModalProps> = ({
 	);
 
 	const [mapping, setMapping] = useState<Record<number, string>>({});
+	const trapRef = useFocusTrap(isOpen);
 
 	useEffect(() => {
 		if (!isOpen) return;
@@ -114,7 +116,7 @@ export const FilenameMappingModal: React.FC<FilenameMappingModalProps> = ({
 
 	return (
 		<ModalOverlay onClick={onClose}>
-			<ModalContent intensity="strong" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Map Filename Parts">
+			<ModalContent ref={trapRef} intensity="strong" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Map Filename Parts">
 				<Title>Map Filename Parts</Title>
 				<Instructions>Assign each part of the filename to a metadata field.</Instructions>
 				{filenameParts.map((part, index) => (
