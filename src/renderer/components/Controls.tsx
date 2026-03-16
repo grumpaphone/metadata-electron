@@ -4,33 +4,46 @@ import { useStoreWithEqualityFn } from 'zustand/traditional';
 import { useStore } from '../store';
 import { shallow } from 'zustand/shallow';
 import { WaveSurferController } from '../audio/WaveSurferController';
+import { PlayIcon, PauseIcon, StopIcon } from './Icons';
 
 const ControlsContainer = styled.div`
 	display: flex;
 	align-items: center;
-	gap: 15px;
+	gap: 10px;
 `;
 
 const PlayerButton = styled.button`
-	background: var(--border-secondary);
-	border: 1px solid var(--border-primary);
+	background: var(--fill-tertiary);
+	border: 1px solid var(--border-secondary);
 	color: var(--text-primary);
 	border-radius: 50%;
-	width: 40px;
-	height: 40px;
+	width: 36px;
+	height: 36px;
 	display: flex;
 	justify-content: center;
 	align-items: center;
 	cursor: pointer;
-	font-size: 1.2em;
-	transition: background 0.2s ease;
+	transition: background 0.15s ease, transform 0.1s ease;
+
 	&:hover {
-		background: var(--table-row-hover);
+		background: var(--fill-secondary);
 	}
+
+	&:active {
+		transform: scale(0.95);
+	}
+
+	&:focus-visible {
+		outline: none;
+		box-shadow: 0 0 0 4px rgba(10, 132, 255, 0.25);
+	}
+
 	&:disabled {
 		opacity: 0.5;
 		cursor: not-allowed;
 	}
+
+	body.reduce-motion & { transition: none; transform: none !important; }
 `;
 
 export const Controls: React.FC = () => {
@@ -55,9 +68,11 @@ export const Controls: React.FC = () => {
 	return (
 		<ControlsContainer>
 			<PlayerButton onClick={handleTogglePlayPause} aria-label={isPlaying ? 'Pause' : 'Play'}>
-				{isPlaying ? '⏸' : '▶'}
+				{isPlaying ? <PauseIcon size={14} /> : <PlayIcon size={14} />}
 			</PlayerButton>
-			<PlayerButton onClick={handleStop} aria-label="Stop">⏹</PlayerButton>
+			<PlayerButton onClick={handleStop} aria-label="Stop">
+				<StopIcon size={12} />
+			</PlayerButton>
 		</ControlsContainer>
 	);
 };

@@ -15,7 +15,6 @@ const ModalOverlay = styled.div`
 
 const ModalContent = styled(VibrancyLayer)`
 	padding: 28px;
-	border-radius: 12px;
 	width: 90%;
 	max-width: 500px;
 	box-shadow: var(--shadow-md);

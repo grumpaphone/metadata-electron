@@ -11,8 +11,8 @@ export interface VibrancyLayerProps {
 export const VibrancyLayer = styled.div<VibrancyLayerProps>`
 	position: relative;
 
-	/* Apple Liquid Glass: subtle material for modals only */
-	border-radius: 12px;
+	/* Apple Liquid Glass: 16px for modal components per spec */
+	border-radius: 16px;
 	overflow: hidden;
 	border: 1px solid var(--border-primary);
 

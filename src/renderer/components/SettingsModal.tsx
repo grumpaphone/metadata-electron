@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import styled from '@emotion/styled';
 import { VibrancyLayer } from './VibrancyLayer';
 import { useFocusTrap } from '../utils/useFocusTrap';
+import { CloseIcon } from './Icons';
 
 const ModalOverlay = styled.div`
 	position: fixed;
@@ -41,7 +42,6 @@ const CloseButton = styled.button`
 	background: transparent;
 	border: 1px solid transparent;
 	color: var(--text-muted);
-	font-size: 24px;
 	cursor: pointer;
 	padding: 4px;
 	border-radius: 8px;
@@ -98,15 +98,16 @@ const Toggle = styled.button<{ enabled: boolean }>`
 	position: relative;
 	cursor: pointer;
 	transition: all 0.2s ease;
+	flex-shrink: 0;
 
 	&::after {
 		content: '';
 		position: absolute;
 		top: 2px;
 		left: ${(props) => (props.enabled ? '22px' : '2px')};
-		width: 24px;
-		height: 24px;
-		background: white;
+		width: 22px;
+		height: 22px;
+		background: var(--toggle-knob);
 		border-radius: 50%;
 		transition: left 0.2s ease;
 		box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
@@ -129,30 +130,6 @@ const Select = styled.select`
 	option {
 		background: var(--bg-tertiary);
 		color: var(--text-primary);
-	}
-`;
-
-const ButtonContainer = styled.div`
-	display: flex;
-	gap: 12px;
-	justify-content: flex-end;
-	margin-top: 24px;
-	padding-top: 16px;
-	border-top: 1px solid var(--border-secondary);
-`;
-
-const Button = styled.button<{ variant?: 'primary' | 'secondary' }>`
-	background: ${(props) => props.variant === 'primary' ? 'var(--accent-primary)' : 'var(--fill-tertiary)'};
-	color: ${(props) => props.variant === 'primary' ? '#ffffff' : 'var(--text-secondary)'};
-	border: 1px solid var(--border-secondary);
-	padding: 10px 20px;
-	border-radius: 6px;
-	cursor: pointer;
-	font-size: 14px;
-	font-weight: 500;
-	transition: all 0.2s ease;
-	&:hover {
-		background: ${(props) => props.variant === 'primary' ? 'var(--accent-hover)' : 'var(--fill-secondary)'};
 	}
 `;
 
@@ -190,7 +167,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 			<ModalContent ref={trapRef} intensity="strong" role="dialog" aria-modal="true" aria-label="Settings">
 				<ModalHeader>
 					<Title>Settings</Title>
-					<CloseButton onClick={onClose} aria-label="Close settings">×</CloseButton>
+					<CloseButton onClick={onClose} aria-label="Close settings">
+						<CloseIcon size={16} />
+					</CloseButton>
 				</ModalHeader>
 
 				<Section>
@@ -239,11 +218,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 						</Select>
 					</SettingRow>
 				</Section>
-
-				<ButtonContainer>
-					<Button variant="secondary" onClick={onClose}>Cancel</Button>
-					<Button variant="primary" onClick={onClose}>Save Settings</Button>
-				</ButtonContainer>
 			</ModalContent>
 		</ModalOverlay>
 	);

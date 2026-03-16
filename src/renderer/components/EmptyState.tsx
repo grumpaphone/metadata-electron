@@ -1,5 +1,6 @@
 import React from 'react';
 import styled from '@emotion/styled';
+import { WaveformIcon, FolderIcon } from './Icons';
 
 const Container = styled.div`
 	display: flex;
@@ -8,11 +9,111 @@ const Container = styled.div`
 	align-items: center;
 	height: 100%;
 	color: var(--text-muted);
+	gap: 8px;
+	user-select: none;
 `;
 
-export const EmptyState: React.FC = () => (
+const IconWrapper = styled.div`
+	color: var(--text-tertiary);
+	opacity: 0.6;
+	margin-bottom: 8px;
+`;
+
+const Title = styled.h3`
+	margin: 0;
+	font-size: 18px;
+	font-weight: 600;
+	color: var(--text-secondary);
+	letter-spacing: -0.2px;
+`;
+
+const Subtitle = styled.p`
+	margin: 0;
+	font-size: 13px;
+	color: var(--text-muted);
+	max-width: 300px;
+	text-align: center;
+	line-height: 1.5;
+`;
+
+const DropZone = styled.div`
+	margin-top: 20px;
+	padding: 20px 40px;
+	border: 1.5px dashed var(--border-primary);
+	border-radius: 12px;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 12px;
+	transition: border-color 0.2s ease, background 0.2s ease;
+
+	&:hover {
+		border-color: var(--accent-primary);
+		background: var(--table-row-hover);
+	}
+`;
+
+const OpenButton = styled.button`
+	font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
+	font-size: 13px;
+	font-weight: 510;
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	padding: 8px 16px;
+	background: var(--accent-primary);
+	color: #ffffff;
+	border: none;
+	border-radius: 6px;
+	cursor: pointer;
+	transition: background 0.15s ease;
+
+	&:hover {
+		background: var(--accent-hover);
+	}
+
+	&:active {
+		transform: translateY(0.5px);
+	}
+`;
+
+const Shortcut = styled.span`
+	margin-top: 12px;
+	font-size: 12px;
+	color: var(--text-muted);
+	kbd {
+		background: var(--fill-tertiary);
+		padding: 2px 6px;
+		border-radius: 4px;
+		border: 1px solid var(--border-secondary);
+		font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
+		font-size: 11px;
+		color: var(--text-tertiary);
+	}
+`;
+
+interface EmptyStateProps {
+	onOpenDirectory?: () => void;
+}
+
+export const EmptyState: React.FC<EmptyStateProps> = ({ onOpenDirectory }) => (
 	<Container>
-		<h3>No Files Loaded</h3>
-		<p>Select a directory or drop files here to get started.</p>
+		<IconWrapper>
+			<WaveformIcon size={80} />
+		</IconWrapper>
+		<Title>No Files Loaded</Title>
+		<Subtitle>Open a directory or drop WAV files here to start editing metadata.</Subtitle>
+		<DropZone>
+			{onOpenDirectory && (
+				<OpenButton onClick={onOpenDirectory}>
+					<FolderIcon size={14} />
+					Open Directory
+				</OpenButton>
+			)}
+			<Subtitle style={{ marginTop: 0, fontSize: '12px' }}>or drag and drop files</Subtitle>
+		</DropZone>
+		<Shortcut>
+			<kbd>Cmd+O</kbd> to open directory
+		</Shortcut>
 	</Container>
 );

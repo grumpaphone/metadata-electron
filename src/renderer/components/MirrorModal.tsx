@@ -22,7 +22,6 @@ const ModalOverlay = styled.div`
 
 const ModalContent = styled(VibrancyLayer)`
 	border: 1px solid var(--border-primary);
-	border-radius: 12px;
 	padding: 24px;
 	width: 600px;
 	max-height: 80vh;

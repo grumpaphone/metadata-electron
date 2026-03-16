@@ -6,6 +6,7 @@ import { shallow } from 'zustand/shallow';
 import { Controls } from './Controls';
 import { VolumeControl } from './VolumeControl';
 import { WaveSurferController } from '../audio/WaveSurferController';
+import { MinimizeIcon } from './Icons';
 
 const PlayerContainer = styled.div<{ isVisible: boolean }>`
 	position: fixed;
@@ -28,22 +29,44 @@ const PlayerContainer = styled.div<{ isVisible: boolean }>`
 	overflow: hidden;
 `;
 
+const TrackInfo = styled.div`
+	display: flex;
+	flex-direction: column;
+	min-width: 120px;
+	max-width: 180px;
+	overflow: hidden;
+`;
+
+const TrackName = styled.div`
+	font-size: 12px;
+	font-weight: 510;
+	color: var(--text-primary);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+`;
+
+const TrackMeta = styled.div`
+	font-size: 10px;
+	color: var(--text-muted);
+	margin-top: 2px;
+`;
+
 const WaveformContainer = styled.div`
 	flex-grow: 1;
-	height: 70px;
+	height: 60px;
 	cursor: pointer;
-	background: rgba(0, 0, 0, 0.2);
-	border: 1px solid rgba(255, 255, 255, 0.05);
+	background: var(--waveform-bg);
+	border: 1px solid var(--waveform-border);
 	border-radius: 8px;
 	padding: 5px;
-	box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.3);
 `;
 
 const TimeDisplay = styled.div`
 	display: flex;
 	flex-direction: column;
 	align-items: center;
-	min-width: 80px;
+	min-width: 70px;
 	font-family: 'Monaco', 'Menlo', monospace;
 	font-size: 12px;
 	color: var(--text-secondary);
@@ -54,6 +77,34 @@ const DurationTime = styled.div`
 	color: var(--text-muted);
 	font-size: 10px;
 `;
+
+const MinimizeButton = styled.button`
+	background: transparent;
+	border: none;
+	color: var(--text-muted);
+	cursor: pointer;
+	padding: 4px;
+	border-radius: 6px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	transition: color 0.15s ease, background 0.15s ease;
+
+	&:hover {
+		color: var(--text-primary);
+		background: var(--fill-tertiary);
+	}
+`;
+
+const basename = (p: string) => p.split(/[\\/]/).pop() || '';
+
+const formatFileSize = (bytes: number) => {
+	if (isNaN(bytes) || bytes === 0) return '';
+	const k = 1024;
+	const sizes = ['B', 'KB', 'MB', 'GB'];
+	const i = Math.floor(Math.log(bytes) / Math.log(k));
+	return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
+};
 
 export const AudioPlayer: React.FC = () => {
 	const { currentFile, isLoading, isPlaying, isMinimized, volume } =
@@ -169,15 +220,30 @@ export const AudioPlayer: React.FC = () => {
 		return !!currentFile && !isMinimized;
 	}, [currentFile, isMinimized]);
 
+	const handleMinimize = useCallback(() => {
+		useStore.getState().setPlayerMinimized(true);
+	}, []);
+
 	return (
 		<PlayerContainer isVisible={isVisible}>
 			<Controls />
+			<TrackInfo>
+				<TrackName title={currentFile ? basename(currentFile.filePath) : ''}>
+					{currentFile ? basename(currentFile.filePath) : ''}
+				</TrackName>
+				<TrackMeta>
+					{currentFile ? formatFileSize(currentFile.fileSize) : ''}
+				</TrackMeta>
+			</TrackInfo>
 			<WaveformContainer ref={waveformRef} />
 			<TimeDisplay>
 				<CurrentTime ref={currentTimeRef}>0:00</CurrentTime>
 				<DurationTime ref={durationTimeRef}>0:00</DurationTime>
 			</TimeDisplay>
 			<VolumeControl />
+			<MinimizeButton onClick={handleMinimize} aria-label="Minimize player">
+				<MinimizeIcon size={16} />
+			</MinimizeButton>
 		</PlayerContainer>
 	);
 };

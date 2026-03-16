@@ -15,7 +15,6 @@ const DialogOverlay = styled.div`
 
 const DialogContent = styled(VibrancyLayer)`
 	padding: 28px;
-	border-radius: 12px;
 	width: 90%;
 	max-width: 400px;
 	box-shadow: var(--shadow-md);

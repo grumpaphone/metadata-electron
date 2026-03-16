@@ -1,11 +1,12 @@
 import React from 'react';
 import styled from '@emotion/styled';
+import { DropFileIcon } from './Icons';
 
 const Overlay = styled.div`
 	position: absolute;
 	top: 0; left: 0; right: 0; bottom: 0;
-	background: rgba(90, 150, 255, 0.14);
-	border: 2px dashed rgba(120, 173, 255, 0.6);
+	background: var(--drag-overlay-bg);
+	border: 2px dashed var(--drag-overlay-border);
 	border-radius: 12px;
 	display: flex;
 	align-items: center;
@@ -15,33 +16,49 @@ const Overlay = styled.div`
 	animation: pulseGlow 2s ease-in-out infinite alternate;
 
 	@keyframes pulseGlow {
-		0% { background: rgba(90, 150, 255, 0.12); border-color: rgba(120, 173, 255, 0.68); }
-		100% { background: rgba(90, 150, 255, 0.2); border-color: rgba(146, 194, 255, 0.9); }
+		0% { opacity: 0.85; }
+		100% { opacity: 1; }
 	}
 `;
 
 const Message = styled.div`
-	background: rgba(15, 28, 52, 0.85);
+	background: var(--drag-message-bg);
 	color: var(--text-primary);
-	padding: 24px 36px;
+	padding: 28px 40px;
 	border-radius: 16px;
+	text-align: center;
+	box-shadow: 0 24px 48px rgba(0, 0, 0, 0.3);
+	border: 1px solid var(--drag-message-border);
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 12px;
+`;
+
+const IconWrapper = styled.div`
+	color: var(--accent-primary);
+`;
+
+const Text = styled.div`
 	font-size: 18px;
 	font-weight: 600;
-	text-align: center;
-	box-shadow: 0 24px 48px rgba(8, 20, 42, 0.5);
-	border: 1px solid rgba(120, 173, 255, 0.4);
+`;
 
-	.icon { font-size: 48px; margin-bottom: 12px; display: block; }
-	.text { font-size: 18px; margin-bottom: 8px; }
-	.subtext { font-size: 13px; opacity: 0.7; font-weight: 400; color: var(--text-secondary); }
+const Subtext = styled.div`
+	font-size: 13px;
+	opacity: 0.7;
+	font-weight: 400;
+	color: var(--text-secondary);
 `;
 
 export const DragOverlay: React.FC = () => (
 	<Overlay>
 		<Message>
-			<span className="icon">📂</span>
-			<div className="text">Drop files here</div>
-			<div className="subtext">.wav files and folders accepted</div>
+			<IconWrapper>
+				<DropFileIcon size={48} />
+			</IconWrapper>
+			<Text>Drop files here</Text>
+			<Subtext>.wav files and folders accepted</Subtext>
 		</Message>
 	</Overlay>
 );

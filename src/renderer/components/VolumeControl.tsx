@@ -3,11 +3,13 @@ import styled from '@emotion/styled';
 import { useStoreWithEqualityFn } from 'zustand/traditional';
 import { useStore } from '../store';
 import { shallow } from 'zustand/shallow';
+import { VolumeIcon, VolumeMuteIcon } from './Icons';
 
 const VolumeContainer = styled.div`
 	display: flex;
 	align-items: center;
-	gap: 10px;
+	gap: 8px;
+	color: var(--text-secondary);
 `;
 
 const VolumeSlider = styled.input`
@@ -54,7 +56,7 @@ export const VolumeControl: React.FC = () => {
 
 	return (
 		<VolumeContainer>
-			<span>🔊</span>
+			{volume === 0 ? <VolumeMuteIcon size={16} /> : <VolumeIcon size={16} />}
 			<VolumeSlider
 				type='range'
 				min='0'
@@ -62,6 +64,7 @@ export const VolumeControl: React.FC = () => {
 				step='0.05'
 				value={volume}
 				onChange={handleVolumeChange}
+				aria-label="Volume"
 			/>
 		</VolumeContainer>
 	);

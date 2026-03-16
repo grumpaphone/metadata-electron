@@ -1,57 +1,85 @@
 import React, { useCallback, useState, useEffect, useRef } from 'react';
 import styled from '@emotion/styled';
 import { Wavedata } from '../../../types';
-
-const METADATA_FONT_SIZE = '11px';
+import { PlayIcon, PauseIcon } from '../Icons';
 
 const Row = styled.tr<{ selected?: boolean }>`
 	background: ${(props) => props.selected ? 'var(--table-row-selected)' : 'transparent'};
 	border-bottom: 1px solid var(--border-secondary);
 	user-select: none;
 	cursor: pointer;
+	transition: background 0.08s ease;
+
+	&:nth-of-type(even) {
+		background: ${(props) => props.selected ? 'var(--table-row-selected)' : 'var(--table-row-alt)'};
+	}
+
 	&:hover {
 		background: var(--table-row-hover);
-		box-shadow: inset 0 0 0 1px rgba(122, 175, 255, 0.15);
 	}
 `;
 
 const Cell = styled.td`
-	padding: 8px;
+	padding: 6px 8px;
 	border-right: 1px solid var(--border-secondary);
 	font-size: var(--font-size-base);
 	color: var(--text-primary);
 	&:last-child { border-right: none; }
 `;
 
+const PlayCell = styled(Cell)`
+	text-align: center;
+	cursor: pointer;
+	color: var(--text-secondary);
+	transition: color 0.1s ease;
+
+	&:hover {
+		color: var(--accent-primary);
+	}
+`;
+
 const CellInput = styled.input`
 	font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
-	font-size: ${METADATA_FONT_SIZE};
+	font-size: var(--font-size-base);
 	width: 100%;
 	box-sizing: border-box;
 	background: transparent;
 	border: 1px solid transparent;
-	padding: 0;
-	margin: 0;
+	border-bottom: 1px dotted var(--cell-editable-hint);
+	padding: 2px 4px;
+	margin: -2px -4px;
 	height: 100%;
 	color: var(--text-primary);
+	border-radius: 3px;
+	transition: border-color 0.1s ease, background 0.1s ease;
+
+	&:hover:not(:focus) {
+		border-bottom-color: var(--border-secondary);
+	}
+
 	&:focus {
 		outline: none;
-		background: var(--input-bg);
-		border-color: var(--accent-primary);
+		background: var(--cell-edit-bg);
+		border-color: var(--cell-edit-border);
+		border-bottom-style: solid;
 	}
 `;
 
-const DirtyDot = styled.div`
-	width: 6px; height: 6px;
-	background-color: var(--color-warning, #ffc107);
-	border-radius: 50%;
-	position: absolute;
-	top: 4px; right: 4px;
+const CellWrapper = styled.div<{ isDirty?: boolean }>`
+	position: relative;
+	background: ${(props) => props.isDirty ? 'var(--cell-dirty-bg)' : 'transparent'};
+	border-radius: 3px;
+	transition: background 0.15s ease;
 `;
 
-const CellWrapper = styled.div`
-	position: relative;
-	padding-right: 12px;
+const DirtyIndicator = styled.div`
+	position: absolute;
+	top: 0;
+	left: -4px;
+	bottom: 0;
+	width: 2px;
+	background: var(--color-warning);
+	border-radius: 1px;
 `;
 
 const EDITABLE_FIELDS = ['show', 'category', 'subcategory', 'scene', 'take', 'ixmlNote'] as const;
@@ -149,9 +177,9 @@ const MetadataTableRowInner: React.FC<MetadataTableRowProps> = ({
 			{visibleColumns.map((column) => {
 				if (column.key === 'audio') {
 					return (
-						<Cell key="audio" style={{ textAlign: 'center', cursor: 'pointer' }} onClick={(e) => onPlayAudio(file, e)}>
-							{isCurrentPlaying ? '⏸' : '▶'}
-						</Cell>
+						<PlayCell key="audio" onClick={(e) => onPlayAudio(file, e)}>
+							{isCurrentPlaying ? <PauseIcon size={12} /> : <PlayIcon size={12} />}
+						</PlayCell>
 					);
 				}
 				if (column.key === 'filename') {
@@ -163,18 +191,18 @@ const MetadataTableRowInner: React.FC<MetadataTableRowProps> = ({
 					const isDirty = origValue !== fieldValue;
 					return (
 						<Cell key={column.key} onClick={(e) => e.stopPropagation()}>
-							<CellWrapper>
+							<CellWrapper isDirty={isDirty}>
+								{isDirty && <DirtyIndicator />}
 								<DebouncedCellInput
 									value={fieldValue}
 									onCommit={(val) => onCellEdit(file.filePath, column.key as keyof Wavedata, val)}
 								/>
-								{isDirty && <DirtyDot />}
 							</CellWrapper>
 						</Cell>
 					);
 				}
-				if (column.key === 'duration') return <Cell key="duration">{formatDuration(file.duration)}</Cell>;
-				if (column.key === 'fileSize') return <Cell key="fileSize">{formatFileSize(file.fileSize)}</Cell>;
+				if (column.key === 'duration') return <Cell key="duration" style={{ color: 'var(--text-secondary)', fontFamily: "'Monaco', 'Menlo', monospace", fontSize: '11px' }}>{formatDuration(file.duration)}</Cell>;
+				if (column.key === 'fileSize') return <Cell key="fileSize" style={{ color: 'var(--text-secondary)', fontSize: '11px' }}>{formatFileSize(file.fileSize)}</Cell>;
 				return null;
 			})}
 		</Row>

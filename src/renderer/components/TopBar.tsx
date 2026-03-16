@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import styled from '@emotion/styled';
 import { WindowControls } from './WindowControls';
 import { useStore } from '../store';
+import { FolderIcon, SettingsIcon } from './Icons';
 
 const UnifiedTopBar = styled.div`
 	display: flex;
@@ -50,7 +51,7 @@ const RightSection = styled.div`
 	gap: 8px;
 	align-items: center;
 	position: relative;
-	z-index: 1000;
+	z-index: 200;
 `;
 
 const Button = styled.button`
@@ -62,14 +63,14 @@ const Button = styled.button`
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	gap: 6px;
+	gap: 5px;
 	padding: 0 12px;
 	min-width: 44px;
-	height: 22px;
+	height: 28px;
 	background: var(--fill-tertiary);
 	color: var(--text-primary);
 	border: 0.5px solid var(--border-secondary);
-	border-radius: 5px;
+	border-radius: 6px;
 	cursor: pointer;
 	box-shadow: 0 0.5px 1px rgba(0, 0, 0, 0.12);
 	transition: background 0.1s ease, box-shadow 0.1s ease;
@@ -95,10 +96,20 @@ const Button = styled.button`
 		transition: none;
 		transform: none !important;
 	}
-	&.folder-button {
-		font-size: 16px;
-		padding: 0 8px;
-		min-width: 28px;
+`;
+
+const IconButton = styled(Button)`
+	padding: 0 8px;
+	min-width: 28px;
+`;
+
+const SaveButton = styled(Button)<{ hasChanges: boolean }>`
+	background: ${(props) => props.hasChanges ? 'var(--accent-primary)' : 'var(--fill-tertiary)'};
+	color: ${(props) => props.hasChanges ? '#ffffff' : 'var(--text-primary)'};
+	border-color: ${(props) => props.hasChanges ? 'transparent' : 'var(--border-secondary)'};
+
+	&:hover:not(:disabled) {
+		background: ${(props) => props.hasChanges ? 'var(--accent-hover)' : 'var(--fill-secondary)'};
 	}
 `;
 
@@ -108,13 +119,13 @@ const PortalTooltip = styled.div<{ top: number; left: number }>`
 	left: ${(props) => props.left}px;
 	transform: translateX(-50%);
 	padding: 6px 10px;
-	background: var(--bg-tertiary);
+	background: var(--bg-elevated);
 	color: var(--text-primary);
 	font-size: 12px;
 	font-weight: 500;
 	border-radius: 6px;
 	white-space: nowrap;
-	z-index: 1000000;
+	z-index: 400;
 	box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4);
 	pointer-events: none;
 	animation: tooltipFadeIn 0.2s ease;
@@ -127,7 +138,7 @@ const PortalTooltip = styled.div<{ top: number; left: number }>`
 		left: 50%;
 		transform: translateX(-50%);
 		border: 5px solid transparent;
-		border-bottom-color: var(--bg-tertiary);
+		border-bottom-color: var(--bg-elevated);
 	}
 
 	@keyframes tooltipFadeIn {
@@ -141,7 +152,7 @@ const SearchContainer = styled.div`
 	display: flex;
 	align-items: center;
 	width: 300px;
-	z-index: 1000;
+	z-index: 200;
 	isolation: isolate;
 `;
 
@@ -153,13 +164,13 @@ const SearchInput = styled.input`
 	letter-spacing: -0.08px;
 	display: block;
 	width: 100%;
-	height: 22px;
+	height: 28px;
 	padding: 0 40px 0 7px;
 	box-sizing: border-box;
 	background: var(--input-bg);
 	color: var(--text-primary);
 	border: 0.5px solid var(--input-border);
-	border-radius: 5px;
+	border-radius: 6px;
 	box-shadow: inset 0 0.5px 1px rgba(0, 0, 0, 0.08);
 	transition: border-color 0.1s ease, box-shadow 0.1s ease;
 
@@ -184,10 +195,10 @@ const DropdownArrow = styled.div<{ isOpen: boolean }>`
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	z-index: 1001;
+	z-index: 201;
 	border-radius: 8px;
 	transition: all 0.2s ease;
-	background: ${(props) => props.isOpen ? 'rgba(140, 183, 255, 0.16)' : 'transparent'};
+	background: ${(props) => props.isOpen ? 'var(--dropdown-hover)' : 'transparent'};
 	user-select: none;
 
 	&:hover {
@@ -214,7 +225,7 @@ const DropdownMenu = styled.div<{ top: number; left: number }>`
 	border: 1px solid var(--border-primary);
 	border-radius: 12px;
 	box-shadow: 0 28px 60px rgba(10, 18, 36, 0.35);
-	z-index: 999999;
+	z-index: 300;
 	min-width: 160px;
 	overflow: hidden;
 	isolation: isolate;
@@ -233,7 +244,7 @@ const DropdownItem = styled.div<{ isSelected?: boolean }>`
 	font-weight: 500;
 	color: ${(props) => props.isSelected ? 'var(--accent-primary)' : 'var(--text-primary)'};
 	transition: background 0.15s ease, color 0.15s ease;
-	background: ${(props) => props.isSelected ? 'rgba(82, 156, 255, 0.1)' : 'transparent'};
+	background: ${(props) => props.isSelected ? 'var(--dropdown-hover)' : 'transparent'};
 	user-select: none;
 
 	&:not(:last-of-type)::after {
@@ -241,11 +252,11 @@ const DropdownItem = styled.div<{ isSelected?: boolean }>`
 		position: absolute;
 		bottom: 0; left: 12px; right: 12px;
 		height: 1px;
-		background: rgba(255, 255, 255, 0.06);
+		background: var(--border-secondary);
 	}
 
 	&:hover {
-		background: rgba(120, 173, 255, 0.12);
+		background: var(--context-hover);
 		color: var(--accent-primary);
 	}
 `;
@@ -256,10 +267,11 @@ interface TooltipButtonProps {
 	onClick?: () => void;
 	disabled?: boolean;
 	className?: string;
+	as?: React.ElementType;
 }
 
 const TooltipButton: React.FC<TooltipButtonProps> = ({
-	children, tooltip, onClick, disabled, className,
+	children, tooltip, onClick, disabled, className, as: Component = Button,
 }) => {
 	const [isVisible, setIsVisible] = useState(false);
 	const [position, setPosition] = useState({ top: 0, left: 0 });
@@ -276,7 +288,7 @@ const TooltipButton: React.FC<TooltipButtonProps> = ({
 
 	return (
 		<>
-			<Button
+			<Component
 				ref={buttonRef}
 				onClick={onClick}
 				disabled={disabled}
@@ -285,7 +297,7 @@ const TooltipButton: React.FC<TooltipButtonProps> = ({
 				onMouseLeave={() => setIsVisible(false)}
 				aria-label={tooltip}>
 				{children}
-			</Button>
+			</Component>
 			{isVisible && showTooltipsEnabled &&
 				createPortal(
 					<PortalTooltip top={position.top} left={position.left}>{tooltip}</PortalTooltip>,
@@ -376,27 +388,28 @@ export const TopBar: React.FC<TopBarProps> = ({
 		<UnifiedTopBar>
 			<LeftSection>
 				<WindowControls />
-				<TooltipButton onClick={onOpenDirectory} tooltip="Open directory (Cmd+O)" className="folder-button">
-					📁
+				<TooltipButton onClick={onOpenDirectory} tooltip="Open directory (Cmd+O)" as={IconButton}>
+					<FolderIcon size={15} />
 				</TooltipButton>
 				<TooltipButton onClick={onOpenExtract} disabled={!hasFiles} tooltip="Extract metadata from filenames (Cmd+E)">
 					Extract
 				</TooltipButton>
-				<TooltipButton onClick={onEmbed} disabled={!isDirty} tooltip="Save changes to WAV files (Cmd+S)">
+				<SaveButton hasChanges={isDirty} onClick={onEmbed} disabled={!isDirty} aria-label="Save changes to WAV files (Cmd+S)">
 					Embed
-				</TooltipButton>
+				</SaveButton>
 				<TooltipButton onClick={onOpenMirror} disabled={!hasFiles} tooltip="Mirror files to another location (Cmd+M)">
 					Mirror
 				</TooltipButton>
 			</LeftSection>
 
 			<MiddleSection>
-				METADATA EDITOR
-				{statusBar && <span style={{ marginLeft: '12px' }}>{statusBar}</span>}
+				{statusBar}
 			</MiddleSection>
 
 			<RightSection>
-				<TooltipButton onClick={onOpenSettings} tooltip="Settings">⚙️</TooltipButton>
+				<TooltipButton onClick={onOpenSettings} tooltip="Settings" as={IconButton}>
+					<SettingsIcon size={15} />
+				</TooltipButton>
 				<SearchContainer ref={filterContainerRef} onKeyDown={handleDropdownKeyDown}>
 					<SearchInput
 						type="text"
@@ -422,7 +435,7 @@ export const TopBar: React.FC<TopBarProps> = ({
 										isSelected={searchField === option.value}
 										role="option"
 										aria-selected={searchField === option.value}
-										style={idx === focusedIndex ? { background: 'rgba(120, 173, 255, 0.2)' } : undefined}
+										style={idx === focusedIndex ? { background: 'var(--context-hover)' } : undefined}
 										onClick={() => {
 											onSearchFieldChange(searchText, option.value);
 											setFilterOpen(false);

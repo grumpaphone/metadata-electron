@@ -27,6 +27,7 @@ import { KeyboardShortcutsModal } from './components/KeyboardShortcuts';
 import { AgentStatusBar } from './components/AgentStatusBar';
 import { ProgressBar } from './components/ProgressBar';
 import { throttle } from './utils/throttle';
+import { SortAscIcon, SortDescIcon, CheckboxIcon } from './components/Icons';
 
 const basename = (p: string) => p.split(/[\\/]/).pop() || '';
 
@@ -94,10 +95,10 @@ const GlobalStyles = () => (
         font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
       }
       ::-webkit-scrollbar { width: 8px; height: 8px; }
-      ::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.1); border-radius: 4px; }
-      ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 4px; }
-      ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.3); }
-      ::-webkit-scrollbar-corner { background: rgba(0, 0, 0, 0.1); }
+      ::-webkit-scrollbar-track { background: var(--scrollbar-track); border-radius: 4px; }
+      ::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 4px; }
+      ::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-thumb-hover); }
+      ::-webkit-scrollbar-corner { background: var(--scrollbar-track); }
       body.reduce-motion *, body.reduce-motion *::before, body.reduce-motion *::after {
         animation-duration: 0.01ms !important;
         animation-iteration-count: 1 !important;
@@ -110,9 +111,9 @@ const GlobalStyles = () => (
 );
 
 const Spinner = styled.div`
-	border: 4px solid rgba(255, 255, 255, 0.3);
+	border: 4px solid var(--fill-tertiary);
 	border-radius: 50%;
-	border-top: 4px solid #fff;
+	border-top: 4px solid var(--accent-primary);
 	width: 40px; height: 40px;
 	animation: spin 1s linear infinite;
 	position: fixed; top: 50%; left: 50%;
@@ -136,14 +137,14 @@ const Table = styled.table`
 const TableHeader = styled.th<{ isScrolled?: boolean }>`
 	font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
 	font-size: 11px;
-	font-weight: 590;
+	font-weight: 600;
 	line-height: 1.36364;
 	letter-spacing: 0.06px;
 	text-transform: uppercase;
 	background: var(--bg-secondary);
 	color: var(--text-secondary);
-	padding: 4px 8px;
-	height: 24px;
+	padding: 6px 8px;
+	height: 28px;
 	text-align: left;
 	cursor: pointer;
 	user-select: none;
@@ -157,9 +158,10 @@ const TableHeader = styled.th<{ isScrolled?: boolean }>`
 `;
 
 const SortIndicator = styled.span`
-	font-size: 10px;
 	margin-left: 4px;
 	opacity: 0.8;
+	display: inline-flex;
+	vertical-align: middle;
 `;
 
 const ContextMenu = styled.div<{ top: number; left: number }>`
@@ -178,20 +180,36 @@ const ContextMenu = styled.div<{ top: number; left: number }>`
 `;
 
 const ContextMenuItem = styled.div<{ danger?: boolean }>`
-	padding: 10px 16px;
-	color: ${(props) => (props.danger ? '#ff6b6b' : 'var(--text-primary)')};
+	padding: 8px 16px;
+	color: ${(props) => (props.danger ? 'var(--color-error)' : 'var(--text-primary)')};
 	cursor: pointer;
 	font-size: 13px;
 	font-weight: 500;
+	display: flex;
+	align-items: center;
+	gap: 8px;
 	transition: background 0.15s ease;
 	&:hover {
 		background: ${(props) =>
-			props.danger ? 'rgba(255, 107, 107, 0.15)' : 'rgba(120, 173, 255, 0.12)'};
+			props.danger ? 'var(--context-danger-hover)' : 'var(--context-hover)'};
 	}
 `;
 
+const ContextMenuShortcut = styled.span`
+	margin-left: auto;
+	font-size: 11px;
+	color: var(--text-muted);
+	font-family: 'Monaco', 'Menlo', monospace;
+`;
+
+const ContextMenuSeparator = styled.div`
+	height: 1px;
+	background: var(--border-secondary);
+	margin: 4px 0;
+`;
+
 const COLUMN_CONFIGS: Record<ColumnKey, { key: ColumnKey; label: string; width: string; sortable: boolean; hideable: boolean }> = {
-	audio: { key: 'audio', label: '♫', width: '50px', sortable: false, hideable: false },
+	audio: { key: 'audio', label: '', width: '50px', sortable: false, hideable: false },
 	filename: { key: 'filename', label: 'Filename', width: '280px', sortable: true, hideable: true },
 	show: { key: 'show', label: 'Show', width: '80px', sortable: true, hideable: true },
 	category: { key: 'category', label: 'Category', width: '100px', sortable: true, hideable: true },
@@ -514,6 +532,24 @@ export const App: React.FC = () => {
 		setContextMenu(null);
 	}, [contextMenu, selectedRows, storeActions]);
 
+	const handleCopyFilepath = useCallback(() => {
+		if (!contextMenu) return;
+		const file = files[contextMenu.fileIndex];
+		if (file) navigator.clipboard.writeText(file.filePath);
+		setContextMenu(null);
+	}, [contextMenu, files]);
+
+	const handleSelectAll = useCallback(() => {
+		const allIndices = (searchText ? filteredFiles : files).map((_, i) => i);
+		allIndices.forEach((i) => storeActions.selectFile(i, true, false));
+		setContextMenu(null);
+	}, [files, filteredFiles, searchText, storeActions]);
+
+	const handleDeselectAll = useCallback(() => {
+		storeActions.selectFile(-1, false, false);
+		setContextMenu(null);
+	}, [storeActions]);
+
 	const handleColumnContextMenu = useCallback((e: React.MouseEvent) => {
 		e.preventDefault();
 		e.stopPropagation();
@@ -612,7 +648,7 @@ export const App: React.FC = () => {
 
 			<TableContainer ref={tableContainerRef}>
 				{sortedFiles.length === 0 && !isLoading ? (
-					<EmptyState />
+					<EmptyState onOpenDirectory={handleOpenDirectory} />
 				) : (
 					<Table>
 						<thead>
@@ -637,7 +673,7 @@ export const App: React.FC = () => {
 										onDragEnd={() => setDragState({ isDragging: false, draggedColumnIndex: null, dropTargetIndex: null })}>
 										{column.label}
 										{column.sortable && sortConfig?.key === column.key && (
-											<SortIndicator>{sortConfig.direction === 'asc' ? '▲' : '▼'}</SortIndicator>
+											<SortIndicator>{sortConfig.direction === 'asc' ? <SortAscIcon /> : <SortDescIcon />}</SortIndicator>
 										)}
 									</TableHeader>
 								))}
@@ -680,10 +716,24 @@ export const App: React.FC = () => {
 			{/* File Context Menu */}
 			{contextMenu && createPortal(
 				<ContextMenu top={contextMenu.y} left={contextMenu.x} data-context-menu>
+					<ContextMenuItem onClick={handleCopyFilepath} data-context-menu>
+						Copy filepath
+					</ContextMenuItem>
+					<ContextMenuItem onClick={handleSelectAll} data-context-menu>
+						Select all
+						<ContextMenuShortcut>Cmd+A</ContextMenuShortcut>
+					</ContextMenuItem>
+					{selectedRows.length > 0 && (
+						<ContextMenuItem onClick={handleDeselectAll} data-context-menu>
+							Deselect all
+						</ContextMenuItem>
+					)}
+					<ContextMenuSeparator />
 					<ContextMenuItem danger onClick={handleRemoveFile} data-context-menu>
 						{selectedRows.includes(contextMenu.fileIndex) && selectedRows.length > 1
 							? `Remove ${selectedRows.length} files`
 							: 'Remove file'}
+						<ContextMenuShortcut>Del</ContextMenuShortcut>
 					</ContextMenuItem>
 				</ContextMenu>,
 				document.body
@@ -697,14 +747,12 @@ export const App: React.FC = () => {
 							key={column.key}
 							onClick={() => { storeActions.toggleColumnVisibility(column.key as keyof ColumnVisibilityState); setColumnContextMenu(null); }}
 							data-column-context-menu>
-							<span style={{ marginRight: '8px' }}>
-								{columnVisibility[column.key as keyof ColumnVisibilityState] ? '☑' : '☐'}
-							</span>
+							<CheckboxIcon checked={!!columnVisibility[column.key as keyof ColumnVisibilityState]} color="var(--accent-primary)" />
 							{column.label}
 						</ContextMenuItem>
 					))}
 					<ContextMenuItem onClick={() => { storeActions.resetColumnVisibility(); setColumnContextMenu(null); }} data-column-context-menu
-						style={{ borderTop: '1px solid rgba(255, 255, 255, 0.1)', marginTop: '4px', paddingTop: '8px' }}>
+						style={{ borderTop: '1px solid var(--border-secondary)', marginTop: '4px', paddingTop: '8px' }}>
 						Reset Column Visibility
 					</ContextMenuItem>
 					<ContextMenuItem onClick={() => { storeActions.resetColumnOrder(); setColumnContextMenu(null); }} data-column-context-menu>
