@@ -17,15 +17,19 @@ export interface BWFMetadata {
 }
 
 export interface IXMLMetadata {
-	project?: string;
-	scene?: string;
-	take?: string;
-	file_family_name?: string;
-	tape?: string;
-	circled?: boolean;
-	wild_track?: boolean;
-	note?: string;
-	[key: string]: any;
+	BWFXML?: {
+		PROJECT?: string;
+		SCENE?: string;
+		TAKE?: string;
+		SLATE?: string;
+		CATEGORY?: string;
+		SUBCATEGORY?: string;
+		NOTE?: string;
+		CIRCLED?: boolean | string;
+		WILD_TRACK?: boolean | string;
+		[key: string]: unknown;
+	};
+	[key: string]: unknown;
 }
 
 export interface FileInfo {
@@ -71,9 +75,17 @@ export interface FileProcessingResult {
 export interface AgentStatus {
 	name: string;
 	active: boolean;
-	lastRun?: Date;
+	/** ISO 8601 datetime */
+	lastRun?: string;
 	status: string;
 	error?: string;
+}
+
+// Progress updates emitted from main to renderer during long-running operations
+export interface LoadingProgress {
+	current: number;
+	total: number;
+	message: string;
 }
 
 // Command system for undo/redo
@@ -83,11 +95,12 @@ export interface UndoRedoCommand {
 	undo?(): void;
 }
 
-export interface MetadataEditCommand extends UndoRedoCommand {
+export interface MetadataEditCommand<K extends keyof Wavedata = keyof Wavedata>
+	extends UndoRedoCommand {
 	filePath: string;
-	field: keyof Wavedata;
-	oldValue: any;
-	newValue: any;
+	field: K;
+	oldValue: Wavedata[K];
+	newValue: Wavedata[K];
 }
 
 // Mirror feature types

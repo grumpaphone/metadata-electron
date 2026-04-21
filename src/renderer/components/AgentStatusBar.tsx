@@ -25,6 +25,18 @@ const StatusItem = styled.div`
 	gap: 4px;
 `;
 
+const AGENT_DISPLAY_NAMES: Record<string, string> = {
+	'file-watcher': 'File Watcher',
+	'auto-save': 'Auto-save',
+};
+
+const formatAgentName = (name: string): string =>
+	AGENT_DISPLAY_NAMES[name] ??
+	name
+		.split(/[-_]/)
+		.map((s) => (s[0]?.toUpperCase() ?? '') + s.slice(1))
+		.join(' ');
+
 export const AgentStatusBar: React.FC = () => {
 	const agentStatuses = useStoreWithEqualityFn(
 		useStore,
@@ -39,7 +51,7 @@ export const AgentStatusBar: React.FC = () => {
 			{agentStatuses.map((agent) => (
 				<StatusItem key={agent.name} title={agent.status}>
 					<StatusDot active={agent.active} />
-					<span>{agent.name === 'file-watcher' ? 'Watch' : agent.name}</span>
+					<span>{formatAgentName(agent.name)}</span>
 				</StatusItem>
 			))}
 		</Container>

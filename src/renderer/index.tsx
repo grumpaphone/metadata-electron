@@ -17,11 +17,11 @@ class ErrorBoundary extends React.Component<
 		return { hasError: true, error };
 	}
 
-	componentDidCatch(error: Error, errorInfo: any) {
+	override componentDidCatch(error: Error, errorInfo: any) {
 		console.error('Error caught by boundary:', error, errorInfo);
 	}
 
-	render() {
+	override render() {
 		if (this.state.hasError) {
 			return (
 				<div style={{ padding: '20px', color: 'white', background: '#1a1a1a' }}>

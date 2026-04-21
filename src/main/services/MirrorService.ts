@@ -120,11 +120,29 @@ export class MirrorService {
 		const destinationDir = path.dirname(destinationPath);
 		await this.ensureDirectoryExists(destinationDir);
 
-		// Copy the file
-		await fs.promises.copyFile(file.filePath, destinationPath);
+		try {
+			// Copy the file
+			await fs.promises.copyFile(file.filePath, destinationPath);
 
-		// Re-embed metadata to ensure it's preserved
-		await metadataService.writeMetadata(destinationPath, file);
+			// Re-embed metadata to ensure it's preserved. Clone the metadata
+			// so we can safely update filePath without mutating the caller's
+			// object.
+			const metadataForDestination: Wavedata = {
+				...file,
+				filePath: destinationPath,
+			};
+
+			// Re-embed metadata to ensure it's preserved
+			await metadataService.writeMetadata(
+				destinationPath,
+				metadataForDestination
+			);
+		} catch (error) {
+			// Best-effort cleanup of any partial copy so we don't leave a
+			// half-written destination behind.
+			await fs.promises.unlink(destinationPath).catch(() => {});
+			throw error;
+		}
 
 		result.copiedFiles++;
 		console.log(`[MIRROR] Copied: ${file.filename} -> ${destinationPath}`);
@@ -151,8 +169,24 @@ export class MirrorService {
 			currentPath = path.join(currentPath, folderName);
 		}
 
-		// Add the filename
-		return path.join(currentPath, file.filename);
+		// Add the (sanitized) filename
+		const safeFilename = this.sanitizeFolderName(file.filename);
+		const finalPath = path.join(currentPath, safeFilename);
+
+		// Path traversal assertion: the final path must live under the
+		// configured destination root.
+		const resolvedFinal = path.resolve(finalPath);
+		const resolvedRoot = path.resolve(config.destinationPath);
+		if (
+			resolvedFinal !== resolvedRoot &&
+			!resolvedFinal.startsWith(resolvedRoot + path.sep)
+		) {
+			throw new Error(
+				`Destination path escapes configured root: ${resolvedFinal} is not under ${resolvedRoot}`
+			);
+		}
+
+		return finalPath;
 	}
 
 	/**

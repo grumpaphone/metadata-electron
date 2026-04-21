@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import styled from '@emotion/styled';
 import {
 	MirrorConfiguration,
@@ -9,6 +9,7 @@ import {
 } from '../../types';
 import { VibrancyLayer } from './VibrancyLayer';
 import { useFocusTrap } from '../utils/useFocusTrap';
+import { useModalKeyboard } from '../hooks/useModal';
 
 const ModalOverlay = styled.div`
 	position: fixed;
@@ -245,7 +246,7 @@ export const MirrorModal: React.FC<MirrorModalProps> = ({
 		setOrganizeLevels((prev) => prev.map((l, i) => (i === index ? { ...l, field } : l)));
 	}, []);
 
-	const generatePreviewPath = useCallback(() => {
+	const previewPath = useMemo(() => {
 		if (!destinationPath || organizeLevels.length === 0) return '';
 		const example = selectedFiles.length > 0
 			? allFiles.find((f) => f.filePath === selectedFiles[0])
@@ -263,13 +264,23 @@ export const MirrorModal: React.FC<MirrorModalProps> = ({
 		setIsProcessing(true);
 		setResult(null);
 		try {
-			await api.setCurrentFiles(allFiles);
 			const config: MirrorConfiguration = {
 				destinationPath,
 				organizeLevels,
 				selectedFiles: selectedFiles.length > 0 ? selectedFiles : undefined,
 			};
-			const mirrorResult = await api.mirrorFiles(config);
+			// Pre-flight conflict check
+			const conflicts = await api.checkFileConflicts(config, allFiles);
+			if (conflicts.length > 0) {
+				const proceed = window.confirm(
+					`${conflicts.length} file${conflicts.length === 1 ? '' : 's'} already exist at the destination. Continue and skip them?`
+				);
+				if (!proceed) {
+					setIsProcessing(false);
+					return;
+				}
+			}
+			const mirrorResult = await api.mirrorFiles(config, allFiles);
 			setResult(mirrorResult);
 		} catch (error) {
 			setResult({
@@ -283,13 +294,8 @@ export const MirrorModal: React.FC<MirrorModalProps> = ({
 	}, [destinationPath, organizeLevels, selectedFiles, allFiles, api]);
 
 	const trapRef = useFocusTrap(isOpen);
-
-	useEffect(() => {
-		if (!isOpen) return;
-		const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-		document.addEventListener('keydown', handler);
-		return () => document.removeEventListener('keydown', handler);
-	}, [isOpen, onClose]);
+	const escGuard = useCallback(() => !isProcessing, [isProcessing]);
+	useModalKeyboard(isOpen, onClose, escGuard);
 
 	if (!isOpen) return null;
 
@@ -297,11 +303,11 @@ export const MirrorModal: React.FC<MirrorModalProps> = ({
 	const canAddLevel = organizeLevels.length < 4 && ORGANIZE_FIELDS.some((f) => !usedFields.has(f.value));
 
 	return (
-		<ModalOverlay onClick={onClose}>
-			<ModalContent ref={trapRef} intensity="strong" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Mirror Files">
+		<ModalOverlay onClick={() => { if (!isProcessing) onClose(); }}>
+			<ModalContent ref={trapRef} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="mirror-modal-title">
 				<ModalHeader>
-					<Title>Mirror Files</Title>
-					<CloseButton onClick={onClose} aria-label="Close">×</CloseButton>
+					<Title id="mirror-modal-title">Mirror Files</Title>
+					<CloseButton onClick={onClose} disabled={isProcessing} aria-label="Close">×</CloseButton>
 				</ModalHeader>
 
 				<FileCountInfo>
@@ -328,10 +334,10 @@ export const MirrorModal: React.FC<MirrorModalProps> = ({
 						</OrganizeLevel>
 					))}
 					{canAddLevel && <Button onClick={handleAddLevel} style={{ marginTop: '8px' }}>+ Add Level</Button>}
-					{generatePreviewPath() && (
+					{previewPath && (
 						<div>
 							<SectionTitle style={{ marginTop: '16px', marginBottom: '8px' }}>Preview Path:</SectionTitle>
-							<PreviewPath>{generatePreviewPath()}</PreviewPath>
+							<PreviewPath>{previewPath}</PreviewPath>
 						</div>
 					)}
 				</Section>

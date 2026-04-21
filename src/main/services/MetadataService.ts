@@ -6,7 +6,11 @@ import { Wavedata, BWFMetadata, FileInfo, IXMLMetadata } from '../../types';
 
 export class MetadataService {
 	private xmlParser = new XMLParser({ ignoreAttributes: false });
-	private xmlBuilder = new XMLBuilder({});
+	private xmlBuilder = new XMLBuilder({
+		ignoreAttributes: false,
+		format: true,
+		attributeNamePrefix: '@_',
+	});
 
 	async readMetadata(filePath: string): Promise<Wavedata> {
 		try {
@@ -49,6 +53,11 @@ export class MetadataService {
 				}
 			}
 
+			const toBoolString = (v: unknown) =>
+				v === true || v === 'true' || v === 'TRUE' || v === 1 || v === '1'
+					? 'true'
+					: 'false';
+
 			return {
 				filePath,
 				filename: fileInfo.fileName,
@@ -59,8 +68,8 @@ export class MetadataService {
 				category,
 				subcategory,
 				ixmlNote: note,
-				ixmlWildtrack: String(!!ixml?.BWFXML?.WILD_TRACK),
-				ixmlCircled: String(!!ixml?.BWFXML?.CIRCLED),
+				ixmlWildtrack: toBoolString(ixml?.BWFXML?.WILD_TRACK),
+				ixmlCircled: toBoolString(ixml?.BWFXML?.CIRCLED),
 				bwf,
 				iXML: ixml ?? undefined,
 				fileInfo,
@@ -90,29 +99,47 @@ export class MetadataService {
 			await fs.promises.writeFile(filePath, outputBuffer);
 
 			console.log(`Metadata written successfully: ${filePath}`);
-		} catch (error) {
-			try {
-				await fs.promises.copyFile(backupPath, filePath);
-			} catch (restoreError) {
-				const restoreMsg = restoreError instanceof Error ? restoreError.message : String(restoreError);
-				console.error(`CRITICAL: Failed to restore backup for ${filePath}: ${restoreMsg}`);
-				throw new Error(
-					`Write failed AND backup restore failed for ${filePath}. ` +
-					`The file may be corrupted. A backup may exist at ${backupPath}. ` +
-					`Original error: ${error instanceof Error ? error.message : String(error)}. ` +
-					`Restore error: ${restoreMsg}`
-				);
-			}
-			throw error;
-		} finally {
+
+			// Success path: remove backup.
 			try {
 				await fs.promises.unlink(backupPath);
 			} catch (cleanupError: unknown) {
 				const code = (cleanupError as NodeJS.ErrnoException)?.code;
 				if (code !== 'ENOENT') {
-					console.warn(`Failed to clean up backup file ${backupPath}:`, cleanupError);
+					console.warn(
+						`Failed to clean up backup file ${backupPath}:`,
+						cleanupError
+					);
 				}
 			}
+		} catch (error) {
+			try {
+				await fs.promises.copyFile(backupPath, filePath);
+				// Restore succeeded; the original file is intact. The backup
+				// is intentionally preserved so the user can recover manually
+				// if desired.
+				console.error(
+					`[METADATA] Write failed for ${filePath}. Restored from backup. Backup preserved at: ${backupPath}`
+				);
+			} catch (restoreError) {
+				const restoreMsg =
+					restoreError instanceof Error
+						? restoreError.message
+						: String(restoreError);
+				console.error(
+					`[METADATA] CRITICAL: Failed to restore backup for ${filePath}: ${restoreMsg}`
+				);
+				console.error(
+					`[METADATA] BACKUP PRESERVED FOR MANUAL RECOVERY: ${backupPath}`
+				);
+				throw new Error(
+					`Write failed AND backup restore failed for ${filePath}. ` +
+						`The file may be corrupted. A backup has been preserved at ${backupPath} for manual recovery. ` +
+						`Original error: ${error instanceof Error ? error.message : String(error)}. ` +
+						`Restore error: ${restoreMsg}`
+				);
+			}
+			throw error;
 		}
 	}
 

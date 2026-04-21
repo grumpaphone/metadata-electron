@@ -11,7 +11,7 @@ import { Global } from '@emotion/react';
 import { useStoreWithEqualityFn } from 'zustand/traditional';
 import { shallow } from 'zustand/shallow';
 import { useStore, AppState, ColumnKey, ColumnVisibilityState } from './store';
-import { Wavedata, AgentStatus } from '../types';
+import { Wavedata, AgentStatus, LoadingProgress } from '../types';
 
 import { ErrorDialog } from './components/ErrorDialog';
 import { FilenameMappingModal } from './components/FilenameMappingModal';
@@ -27,9 +27,8 @@ import { KeyboardShortcutsModal } from './components/KeyboardShortcuts';
 import { AgentStatusBar } from './components/AgentStatusBar';
 import { ProgressBar } from './components/ProgressBar';
 import { throttle } from './utils/throttle';
+import { basename } from './utils/format';
 import { SortAscIcon, SortDescIcon, CheckboxIcon } from './components/Icons';
-
-const basename = (p: string) => p.split(/[\\/]/).pop() || '';
 
 const createFallbackAPI = (): typeof window.electronAPI => {
 	console.warn('Fallback API created. IPC is not available.');
@@ -38,7 +37,6 @@ const createFallbackAPI = (): typeof window.electronAPI => {
 	return {
 		onProgressUpdate: () => noop,
 		onAgentStatusChange: () => noop,
-		onAutoSaveRequest: () => noop,
 		onFileChanged: () => noop,
 		showOpenDialog: () => Promise.resolve({ canceled: true, filePaths: [] as string[] }),
 		scanDirectory: () => Promise.resolve([] as Wavedata[]),
@@ -46,20 +44,15 @@ const createFallbackAPI = (): typeof window.electronAPI => {
 		readMetadata: () => Promise.resolve(null as unknown as Wavedata),
 		writeMetadata: noopPromise,
 		loadAudioFile: noopPromise,
-		removeAllListeners: noop,
 		getPathForFile: (file: File) => (file as unknown as { path: string }).path || file.name,
 		startFileWatching: noopPromise,
 		stopFileWatching: noopPromise,
 		openFileDialog: noopPromise,
 		selectMirrorDestination: () => Promise.resolve(null),
-		batchUpdateMetadata: noopPromise,
-		batchExtractMetadata: () => Promise.resolve([]),
-		setCurrentFiles: noopPromise,
 		mirrorFiles: noopPromise,
 		checkFileConflicts: () => Promise.resolve([]),
 		getAgentStatuses: () => Promise.resolve([]),
 		toggleAgent: noopPromise,
-		triggerAgent: noopPromise,
 		createTestFiles: () => Promise.resolve({ success: false, directory: '', files: [], errors: [] }),
 		debugLog: noopPromise,
 		windowMinimize: noopPromise,
@@ -224,14 +217,13 @@ const COLUMN_CONFIGS: Record<ColumnKey, { key: ColumnKey; label: string; width: 
 // --- MAIN APP COMPONENT ---
 export const App: React.FC = () => {
 	const {
-		files, originalFiles, filteredFiles, selectedRows,
+		files, filteredFiles, selectedRows,
 		searchText, searchField, isLoading, error, isDirty,
-		currentFile, isPlaying, settings, columnVisibility, columnOrder,
+		settings, columnVisibility, columnOrder,
 	} = useStoreWithEqualityFn(
 		useStore,
 		(state: AppState) => ({
 			files: state.files,
-			originalFiles: state.originalFiles,
 			filteredFiles: state.filteredFiles,
 			selectedRows: state.selectedRows,
 			searchText: state.searchText,
@@ -239,8 +231,6 @@ export const App: React.FC = () => {
 			isLoading: state.isLoading,
 			error: state.error,
 			isDirty: state.isDirty,
-			currentFile: state.audioPlayer.currentFile,
-			isPlaying: state.audioPlayer.isPlaying,
 			settings: state.settings,
 			columnVisibility: state.columnVisibility,
 			columnOrder: state.columnOrder,
@@ -248,16 +238,41 @@ export const App: React.FC = () => {
 		shallow
 	);
 
-	// Stable ref to store actions — Zustand's getState() action functions are stable
-	const storeActions = useMemo(() => useStore.getState(), []);
+	// Subscribe to originalFiles separately (changes less frequently than files).
+	const originalFiles = useStoreWithEqualityFn(
+		useStore,
+		(state: AppState) => state.originalFiles,
+		Object.is
+	);
+
+	// Subscribe only to the audio-player fields that affect the table row visuals.
+	// Avoid subscribing to currentTime/waveformReady/etc. which would re-render on every tick.
+	const currentFile = useStoreWithEqualityFn(
+		useStore,
+		(state: AppState) => state.audioPlayer.currentFile,
+		Object.is
+	);
+	const isPlaying = useStoreWithEqualityFn(
+		useStore,
+		(state: AppState) => state.audioPlayer.isPlaying,
+		Object.is
+	);
+
+	// Live agent statuses for SettingsModal toggle mirroring.
+	const agentStatuses = useStoreWithEqualityFn(
+		useStore,
+		(state: AppState) => state.agentStatuses,
+		shallow
+	);
 
 	const [dragCounter, setDragCounter] = useState(0);
+	const dragCounterRef = useRef(0);
 	const [isMappingModalOpen, setIsMappingModalOpen] = useState(false);
 	const [isMirrorModalOpen, setIsMirrorModalOpen] = useState(false);
 	const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
 	const [isShortcutsModalOpen, setIsShortcutsModalOpen] = useState(false);
 	const [sortConfig, setSortConfig] = useState<{ key: keyof Wavedata; direction: 'asc' | 'desc' } | null>({ key: 'filename', direction: 'asc' });
-	const [contextMenu, setContextMenu] = useState<{ x: number; y: number; fileIndex: number } | null>(null);
+	const [contextMenu, setContextMenu] = useState<{ x: number; y: number; filePath: string } | null>(null);
 	const [columnContextMenu, setColumnContextMenu] = useState<{ x: number; y: number } | null>(null);
 	const [scrollState, setScrollState] = useState({ isScrolled: false });
 	const [dragState, setDragState] = useState<{ isDragging: boolean; draggedColumnIndex: number | null; dropTargetIndex: number | null }>({
@@ -265,6 +280,7 @@ export const App: React.FC = () => {
 	});
 
 	const tableContainerRef = useRef<HTMLDivElement>(null);
+	const lastAnchorRef = useRef<string | null>(null);
 
 	const [apiReady, setApiReady] = useState(false);
 	const [api, setApi] = useState<typeof window.electronAPI | null>(null);
@@ -278,11 +294,24 @@ export const App: React.FC = () => {
 		setApiReady(true);
 	}, []);
 
-	const orderedColumns = columnOrder.map((k) => COLUMN_CONFIGS[k]);
-	const visibleColumns = orderedColumns.filter((col) => !col.hideable || columnVisibility[col.key as keyof ColumnVisibilityState]);
+	const orderedColumns = useMemo(
+		() => columnOrder.map((k) => COLUMN_CONFIGS[k]),
+		[columnOrder]
+	);
+	const visibleColumns = useMemo(
+		() =>
+			orderedColumns.filter(
+				(col) => !col.hideable || columnVisibility[col.key as keyof ColumnVisibilityState]
+			),
+		[orderedColumns, columnVisibility]
+	);
+
+	const filesToSort = useMemo(
+		() => (searchText ? filteredFiles : files),
+		[searchText, filteredFiles, files]
+	);
 
 	const sortedFiles = useMemo(() => {
-		const filesToSort = searchText ? filteredFiles : files;
 		if (!sortConfig) return filesToSort;
 		return [...filesToSort].sort((a, b) => {
 			const aVal = a[sortConfig.key] as string | number;
@@ -291,14 +320,7 @@ export const App: React.FC = () => {
 			if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
 			return 0;
 		});
-	}, [files, filteredFiles, searchText, sortConfig]);
-
-	// Pre-compute filePath→index map (eliminates O(n) findIndex per row)
-	const filePathToIndex = useMemo(() => {
-		const map = new Map<string, number>();
-		files.forEach((f, i) => map.set(f.filePath, i));
-		return map;
-	}, [files]);
+	}, [filesToSort, sortConfig]);
 
 	// Pre-compute filePath→originalFile map
 	const filePathToOriginal = useMemo(() => {
@@ -307,17 +329,33 @@ export const App: React.FC = () => {
 		return map;
 	}, [originalFiles]);
 
+	// Ordered list of visible file paths (used for selection ranges and arrow-key nav).
+	const orderedPaths = useMemo(
+		() => sortedFiles.map((f) => f.filePath),
+		[sortedFiles]
+	);
+
+	// O(1) selection lookup in the row map.
+	const selectedSet = useMemo(() => new Set(selectedRows), [selectedRows]);
+
+	const selectAllVisibleRows = useCallback(() => {
+		useStore.getState().setSelectedRows(orderedPaths);
+		setContextMenu(null);
+	}, [orderedPaths]);
+
+	const clearSelectedRows = useCallback(() => {
+		useStore.getState().setSelectedRows([]);
+		setContextMenu(null);
+	}, []);
+
 	// IPC listeners
 	useEffect(() => {
 		if (!apiReady || !api) return;
-		const unsubProgress = api.onProgressUpdate((data: { fileName: string; percentage: number; processed: number; total: number }) => {
-			storeActions.setLoadingProgress(data);
+		const unsubProgress = api.onProgressUpdate((data: LoadingProgress) => {
+			useStore.getState().setLoadingProgress(data);
 		});
 		const unsubStatus = api.onAgentStatusChange((statuses: AgentStatus[]) => {
-			storeActions.setAgentStatuses(statuses);
-		});
-		const unsubAutoSave = api.onAutoSaveRequest(() => {
-			storeActions.saveAllChanges();
+			useStore.getState().setAgentStatuses(statuses);
 		});
 		const unsubFileChanged = api.onFileChanged(async (changedPath: string) => {
 			// Re-read metadata for externally changed files
@@ -327,15 +365,15 @@ export const App: React.FC = () => {
 				try {
 					const updated = await api.readMetadata(changedPath);
 					if (updated) {
-						storeActions.batchUpdateMetadata([{ filePath: changedPath, data: updated }]);
+						useStore.getState().batchUpdateMetadata([{ filePath: changedPath, data: updated }]);
 					}
 				} catch (err) {
 					console.warn(`Failed to re-read externally changed file: ${changedPath}`, err);
 				}
 			}
 		});
-		return () => { unsubProgress?.(); unsubStatus?.(); unsubAutoSave?.(); unsubFileChanged?.(); };
-	}, [apiReady, api, storeActions]);
+		return () => { unsubProgress?.(); unsubStatus?.(); unsubFileChanged?.(); };
+	}, [apiReady, api]);
 
 	// Shared directory open logic (used by keyboard shortcuts and TopBar)
 	const openDirectoryViaDialog = useCallback(async () => {
@@ -343,73 +381,122 @@ export const App: React.FC = () => {
 		const result = await api.showOpenDialog();
 		if (result && !result.canceled && result.filePaths.length > 0) {
 			try {
-				storeActions.setIsLoading(true);
+				useStore.getState().setIsLoading(true);
+				useStore.getState().setLoadingProgress(null);
 				const loadedFiles = await api.scanDirectory(result.filePaths[0]);
-				storeActions.setFiles(loadedFiles);
+				useStore.getState().setFiles(loadedFiles);
 			} catch (err) {
-				storeActions.setError(`Failed to load directory: ${(err as Error).message}`);
+				useStore.getState().setError(`Failed to load directory: ${(err as Error).message}`);
 			} finally {
-				storeActions.setIsLoading(false);
+				useStore.getState().setLoadingProgress(null);
+				useStore.getState().setIsLoading(false);
 			}
 		}
-	}, [api, storeActions]);
+	}, [api]);
 
 	// Keyboard shortcuts
 	useEffect(() => {
 		const handleKeyDown = (event: KeyboardEvent) => {
+			const activeEl = document.activeElement as HTMLElement | null;
+			const isTyping = !!(activeEl && (
+				activeEl.tagName === 'INPUT' ||
+				activeEl.tagName === 'TEXTAREA' ||
+				activeEl.tagName === 'SELECT' ||
+				activeEl.isContentEditable ||
+				activeEl.closest('[role="dialog"]')
+			));
+
+			if (isTyping) return;
+
 			const isMod = event.metaKey || event.ctrlKey;
 			if (isMod) {
 				switch (event.key.toLowerCase()) {
-					case 'z': event.preventDefault(); event.shiftKey ? storeActions.redo() : storeActions.undo(); return;
-					case 's': event.preventDefault(); storeActions.saveAllChanges(); return;
+					case 'z': event.preventDefault(); event.shiftKey ? useStore.getState().redo() : useStore.getState().undo(); return;
+					case 's': event.preventDefault(); useStore.getState().saveAllChanges(); return;
 					case 'o': event.preventDefault(); openDirectoryViaDialog(); return;
 					case 'm': event.preventDefault(); if (files.length > 0) setIsMirrorModalOpen(true); return;
 					case 'e': event.preventDefault(); if (files.length > 0) setIsMappingModalOpen(true); return;
+					case 'a':
+						event.preventDefault();
+						selectAllVisibleRows();
+						return;
 					case '/': event.preventDefault(); setIsShortcutsModalOpen(true); return;
 				}
 			}
-			const activeEl = document.activeElement;
-			const isTyping = activeEl?.tagName === 'INPUT' || activeEl?.tagName === 'TEXTAREA';
-			if (isTyping) return;
-			const fileCount = searchText ? filteredFiles.length : files.length;
+
+			const selectedPaths = selectedRows;
 			switch (event.key) {
-				case 'ArrowDown':
+				case 'ArrowDown': {
 					event.preventDefault();
-					if (fileCount > 0) {
-						const current = selectedRows.length > 0 ? selectedRows[selectedRows.length - 1] : -1;
-						const next = Math.min(current + 1, fileCount - 1);
-						storeActions.selectFile(next, false, event.shiftKey);
+					if (orderedPaths.length === 0) return;
+					const anchor = lastAnchorRef.current;
+					let nextIdx: number;
+					if (anchor && orderedPaths.includes(anchor)) {
+						nextIdx = Math.min(orderedPaths.indexOf(anchor) + 1, orderedPaths.length - 1);
+					} else if (selectedPaths.length > 0) {
+						const lastPath = selectedPaths[selectedPaths.length - 1];
+						const lastIdx = orderedPaths.indexOf(lastPath);
+						nextIdx = Math.min((lastIdx < 0 ? -1 : lastIdx) + 1, orderedPaths.length - 1);
+					} else {
+						nextIdx = 0;
+					}
+					const nextPath = orderedPaths[nextIdx];
+					if (!nextPath) return;
+					if (event.shiftKey && anchor) {
+						useStore.getState().selectRange(anchor, nextPath, orderedPaths);
+					} else {
+						useStore.getState().selectFile(nextPath, false, false);
+						lastAnchorRef.current = nextPath;
 					}
 					break;
-				case 'ArrowUp':
+				}
+				case 'ArrowUp': {
 					event.preventDefault();
-					if (fileCount > 0) {
-						const current = selectedRows.length > 0 ? selectedRows[0] : fileCount;
-						const prev = Math.max(current - 1, 0);
-						storeActions.selectFile(prev, false, event.shiftKey);
+					if (orderedPaths.length === 0) return;
+					const anchor = lastAnchorRef.current;
+					let prevIdx: number;
+					if (anchor && orderedPaths.includes(anchor)) {
+						prevIdx = Math.max(orderedPaths.indexOf(anchor) - 1, 0);
+					} else if (selectedPaths.length > 0) {
+						const firstPath = selectedPaths[0];
+						const firstIdx = orderedPaths.indexOf(firstPath);
+						prevIdx = Math.max((firstIdx < 0 ? orderedPaths.length : firstIdx) - 1, 0);
+					} else {
+						prevIdx = orderedPaths.length - 1;
+					}
+					const prevPath = orderedPaths[prevIdx];
+					if (!prevPath) return;
+					if (event.shiftKey && anchor) {
+						useStore.getState().selectRange(anchor, prevPath, orderedPaths);
+					} else {
+						useStore.getState().selectFile(prevPath, false, false);
+						lastAnchorRef.current = prevPath;
 					}
 					break;
-				case ' ':
+				}
+				case ' ': {
 					event.preventDefault();
-					if (selectedRows.length > 0) {
-						const selectedFile = files[selectedRows[0]];
+					const store = useStore.getState();
+					if (selectedPaths.length > 0) {
+						const selectedFile = files.find((f) => f.filePath === selectedPaths[0]);
 						if (selectedFile) {
-							if (currentFile?.filePath === selectedFile.filePath) storeActions.togglePlayPause();
-							else storeActions.loadAudioFile(selectedFile);
-							storeActions.setPlayerMinimized(false);
+							if (currentFile?.filePath === selectedFile.filePath) store.togglePlayPause();
+							else store.loadAudioFile(selectedFile);
+							store.setPlayerMinimized(false);
 						}
-					} else storeActions.togglePlayPause();
+					} else store.togglePlayPause();
 					break;
+				}
 				case 'Enter':
 					event.preventDefault();
 					WaveSurferController.getInstance().stop();
-					storeActions.stopAudio();
+					useStore.getState().stopAudio();
 					break;
 			}
 		};
 		document.addEventListener('keydown', handleKeyDown);
 		return () => document.removeEventListener('keydown', handleKeyDown);
-	}, [files, filteredFiles, searchText, selectedRows, currentFile, storeActions, openDirectoryViaDialog]);
+	}, [files, selectedRows, currentFile, orderedPaths, openDirectoryViaDialog, selectAllVisibleRows]);
 
 	// Scroll tracking
 	useEffect(() => {
@@ -440,9 +527,11 @@ export const App: React.FC = () => {
 	const handleDrop = useCallback(async (e: React.DragEvent<HTMLDivElement>) => {
 		e.preventDefault();
 		e.stopPropagation();
+		dragCounterRef.current = 0;
 		setDragCounter(0);
 		if (!api) return;
-		storeActions.setIsLoading(true);
+		useStore.getState().setIsLoading(true);
+		useStore.getState().setLoadingProgress(null);
 		try {
 			const droppedItems = Array.from(e.dataTransfer.files);
 			const filesToAdd: Wavedata[] = [];
@@ -463,19 +552,24 @@ export const App: React.FC = () => {
 			}
 			const existingPaths = new Set(files.map((f) => f.filePath));
 			const newFiles = filesToAdd.filter((f) => !existingPaths.has(f.filePath));
-			if (newFiles.length > 0) storeActions.addFiles(newFiles);
+			if (newFiles.length > 0) useStore.getState().addFiles(newFiles);
 			if (errors.length > 0) {
 				const loaded = filesToAdd.length;
-				storeActions.setError(
+				useStore.getState().setError(
 					`Loaded ${loaded} file${loaded !== 1 ? 's' : ''}, but ${errors.length} failed:\n${errors.join('\n')}`
+				);
+			} else if (filesToAdd.length === 0) {
+				useStore.getState().setError(
+					'No supported files found. Only .wav files and folders are accepted.'
 				);
 			}
 		} catch (err) {
-			storeActions.setError(`Error processing dropped files: ${(err as Error).message}`);
+			useStore.getState().setError(`Error processing dropped files: ${(err as Error).message}`);
 		} finally {
-			storeActions.setIsLoading(false);
+			useStore.getState().setLoadingProgress(null);
+			useStore.getState().setIsLoading(false);
 		}
-	}, [api, files, storeActions]);
+	}, [api, files]);
 
 	const handleSort = useCallback((key: keyof Wavedata) => {
 		setSortConfig((current) => ({
@@ -485,21 +579,37 @@ export const App: React.FC = () => {
 	}, []);
 
 	const handleCellEdit = useCallback((filePath: string, field: keyof Wavedata, value: string) => {
-		storeActions.updateFileMetadata(filePath, field, value);
-	}, [storeActions]);
+		useStore.getState().updateFileMetadata(filePath, field, value);
+	}, []);
 
-	const handlePlayAudio = useCallback((file: Wavedata, e: React.MouseEvent) => {
+	const handlePlayAudio = useCallback((file: Wavedata, e: React.MouseEvent | React.KeyboardEvent) => {
 		e.stopPropagation();
-		if (currentFile?.filePath === file.filePath) storeActions.togglePlayPause();
-		else storeActions.loadAudioFile(file);
-		storeActions.setPlayerMinimized(false);
-	}, [currentFile, storeActions]);
+		const store = useStore.getState();
+		if (currentFile?.filePath === file.filePath) store.togglePlayPause();
+		else store.loadAudioFile(file);
+		store.setPlayerMinimized(false);
+	}, [currentFile]);
+
+	// Row selection handler — uses filePath and tracks anchor for range-select symmetry.
+	const handleRowSelect = useCallback(
+		(filePath: string, ctrlKey: boolean, shiftKey: boolean) => {
+			const store = useStore.getState();
+			if (shiftKey && lastAnchorRef.current) {
+				store.selectRange(lastAnchorRef.current, filePath, orderedPaths);
+				return;
+			}
+			store.selectFile(filePath, ctrlKey, false);
+			lastAnchorRef.current = filePath;
+		},
+		[orderedPaths]
+	);
 
 	const handleFilenameMapping = useCallback((mapping: Record<number, string>) => {
-		const rowsToProcess = selectedRows.length > 0 ? selectedRows : files.map((_, i) => i);
-		const updates = rowsToProcess
-			.map((rowIndex) => {
-				const file = files[rowIndex];
+		const pathsToProcess = selectedRows.length > 0 ? selectedRows : files.map((f) => f.filePath);
+		const fileByPath = new Map(files.map((f) => [f.filePath, f]));
+		const updates = pathsToProcess
+			.map((filePath) => {
+				const file = fileByPath.get(filePath);
 				if (!file) return null;
 				const parts = basename(file.filePath).replace(/\.wav$/i, '').split('_');
 				const data: Partial<Wavedata> = {};
@@ -515,40 +625,38 @@ export const App: React.FC = () => {
 				return Object.keys(data).length > 0 ? { filePath: file.filePath, data } : null;
 			})
 			.filter((u): u is { filePath: string; data: Partial<Wavedata> } => u !== null);
-		if (updates.length > 0) storeActions.batchUpdateMetadata(updates);
+		if (updates.length > 0) useStore.getState().batchUpdateMetadata(updates);
 		setIsMappingModalOpen(false);
-	}, [files, selectedRows, storeActions]);
+	}, [files, selectedRows]);
 
-	const handleContextMenu = useCallback((e: React.MouseEvent, fileIndex: number) => {
+	const handleContextMenu = useCallback((e: React.MouseEvent, filePath: string) => {
 		e.preventDefault();
 		e.stopPropagation();
-		setContextMenu({ x: e.clientX, y: e.clientY, fileIndex });
+		setContextMenu({ x: e.clientX, y: e.clientY, filePath });
 	}, []);
 
 	const handleRemoveFile = useCallback(() => {
 		if (!contextMenu) return;
-		const indices = selectedRows.includes(contextMenu.fileIndex) ? selectedRows : [contextMenu.fileIndex];
-		storeActions.removeFiles(indices);
+		const paths = selectedRows.includes(contextMenu.filePath)
+			? selectedRows
+			: [contextMenu.filePath];
+		useStore.getState().removeFilesByPath(paths);
 		setContextMenu(null);
-	}, [contextMenu, selectedRows, storeActions]);
+	}, [contextMenu, selectedRows]);
 
 	const handleCopyFilepath = useCallback(() => {
 		if (!contextMenu) return;
-		const file = files[contextMenu.fileIndex];
-		if (file) navigator.clipboard.writeText(file.filePath);
+		navigator.clipboard.writeText(contextMenu.filePath);
 		setContextMenu(null);
-	}, [contextMenu, files]);
+	}, [contextMenu]);
 
 	const handleSelectAll = useCallback(() => {
-		const allIndices = (searchText ? filteredFiles : files).map((_, i) => i);
-		allIndices.forEach((i) => storeActions.selectFile(i, true, false));
-		setContextMenu(null);
-	}, [files, filteredFiles, searchText, storeActions]);
+		selectAllVisibleRows();
+	}, [selectAllVisibleRows]);
 
 	const handleDeselectAll = useCallback(() => {
-		storeActions.selectFile(-1, false, false);
-		setContextMenu(null);
-	}, [storeActions]);
+		clearSelectedRows();
+	}, [clearSelectedRows]);
 
 	const handleColumnContextMenu = useCallback((e: React.MouseEvent) => {
 		e.preventDefault();
@@ -564,6 +672,19 @@ export const App: React.FC = () => {
 		setDragState({ isDragging: true, draggedColumnIndex: idx, dropTargetIndex: null });
 	}, []);
 
+	const handleColumnHeaderDragOver = useCallback(
+		(e: React.DragEvent<HTMLTableCellElement>) => {
+			e.preventDefault();
+			const targetEl = e.currentTarget as HTMLElement;
+			const idxAttr = targetEl.dataset.colIdx;
+			const idx = idxAttr ? parseInt(idxAttr, 10) : -1;
+			if (idx >= 0) {
+				setDragState((p) => (p.dropTargetIndex === idx ? p : { ...p, dropTargetIndex: idx }));
+			}
+		},
+		[]
+	);
+
 	const handleColumnDrop = useCallback((e: React.DragEvent, dropIdx: number) => {
 		e.preventDefault();
 		const dragIdx = parseInt(e.dataTransfer.getData('text/plain'));
@@ -573,25 +694,78 @@ export const App: React.FC = () => {
 			if (dragCol && dropCol) {
 				const from = columnOrder.indexOf(dragCol.key);
 				const to = columnOrder.indexOf(dropCol.key);
-				if (from !== -1 && to !== -1) storeActions.reorderColumns(from, to);
+				if (from !== -1 && to !== -1) useStore.getState().reorderColumns(from, to);
 			}
 		}
 		setDragState({ isDragging: false, draggedColumnIndex: null, dropTargetIndex: null });
-	}, [visibleColumns, columnOrder, storeActions]);
+	}, [visibleColumns, columnOrder]);
+
+	// Drop-zone handlers: track counter via ref to avoid stale closures.
+	const handleContainerDragOver = useCallback(
+		(e: React.DragEvent<HTMLDivElement>) => {
+			e.preventDefault();
+			const types = e.dataTransfer?.types;
+			if (types) {
+				if (types.includes && types.includes('application/column-reorder')) {
+					e.dataTransfer.dropEffect = 'none';
+				} else if (types.includes && types.includes('Files')) {
+					e.dataTransfer.dropEffect = 'copy';
+				} else {
+					e.dataTransfer.dropEffect = 'none';
+				}
+			}
+		},
+		[]
+	);
+
+	const handleContainerDragEnter = useCallback(
+		(e: React.DragEvent<HTMLDivElement>) => {
+			e.preventDefault();
+			if (e.dataTransfer?.types && (e.dataTransfer.types as unknown as string[]).includes?.('application/column-reorder')) {
+				return;
+			}
+			dragCounterRef.current += 1;
+			if (dragCounterRef.current === 1) setDragCounter(1);
+		},
+		[]
+	);
+
+	const handleContainerDragLeave = useCallback(
+		(e: React.DragEvent<HTMLDivElement>) => {
+			if (e.dataTransfer?.types && (e.dataTransfer.types as unknown as string[]).includes?.('application/column-reorder')) {
+				return;
+			}
+			dragCounterRef.current -= 1;
+			if (dragCounterRef.current <= 0) {
+				dragCounterRef.current = 0;
+				setDragCounter(0);
+			}
+		},
+		[]
+	);
 
 	if (!apiReady || !api) {
 		return <AppContainer><GlobalStyles /><Spinner /></AppContainer>;
 	}
 
+	const firstSelectedPath = selectedRows[0];
+	const firstSelectedFile = firstSelectedPath
+		? files.find((f) => f.filePath === firstSelectedPath)
+		: undefined;
+
+	const fileWatcherActive = agentStatuses.some(
+		(a) => a.name === 'file-watcher' && a.active
+	);
+
 	return (
 		<AppContainer
-			onDragOver={(e) => { e.preventDefault(); if (e.dataTransfer.types.includes('application/column-reorder')) e.dataTransfer.dropEffect = 'none'; }}
+			onDragOver={handleContainerDragOver}
 			onDrop={handleDrop}
-			onDragEnter={(e) => { e.preventDefault(); if (!e.dataTransfer.types.includes('application/column-reorder')) setDragCounter((p) => p + 1); }}
-			onDragLeave={(e) => { e.preventDefault(); if (!e.dataTransfer.types.includes('application/column-reorder')) setDragCounter((p) => Math.max(0, p - 1)); }}>
+			onDragEnter={handleContainerDragEnter}
+			onDragLeave={handleContainerDragLeave}>
 			<GlobalStyles />
 
-			{error && <ErrorDialog message={error} onClose={() => storeActions.clearError()} />}
+			{error && <ErrorDialog message={error} onClose={() => useStore.getState().clearError()} />}
 			{isLoading && <Spinner />}
 
 			<FilenameMappingModal
@@ -599,15 +773,15 @@ export const App: React.FC = () => {
 				onClose={() => setIsMappingModalOpen(false)}
 				onApply={handleFilenameMapping}
 				sampleFilename={
-					selectedRows.length > 0
-						? basename(files[selectedRows[0]]?.filePath || '')
+					firstSelectedFile
+						? basename(firstSelectedFile.filePath)
 						: files.length > 0 ? basename(files[0].filePath) : 'example_file_name.wav'
 				}
 			/>
 			<MirrorModal
 				isOpen={isMirrorModalOpen}
 				onClose={() => setIsMirrorModalOpen(false)}
-				selectedFiles={selectedRows.map((i) => files[i]?.filePath).filter(Boolean)}
+				selectedFiles={selectedRows}
 				allFiles={files}
 				totalFiles={files.length}
 			/>
@@ -615,12 +789,12 @@ export const App: React.FC = () => {
 				isOpen={isSettingsModalOpen}
 				onClose={() => setIsSettingsModalOpen(false)}
 				isDarkMode={settings.isDarkMode}
-				onThemeToggle={storeActions.toggleDarkMode}
+				onThemeToggle={useStore.getState().toggleDarkMode}
 				fontSize={settings.fontSize}
-				onFontSizeChange={storeActions.setFontSize}
+				onFontSizeChange={useStore.getState().setFontSize}
 				showTooltips={settings.showTooltips}
-				onTooltipsToggle={storeActions.toggleTooltips}
-				fileWatcherActive={useStore.getState().agentStatuses.some((a) => a.name === 'file-watcher' && a.active)}
+				onTooltipsToggle={useStore.getState().toggleTooltips}
+				fileWatcherActive={fileWatcherActive}
 				onFileWatcherToggle={() => {
 					const watcher = useStore.getState().agentStatuses.find((a) => a.name === 'file-watcher');
 					api?.toggleAgent('file-watcher', !watcher?.active).catch(console.error);
@@ -628,34 +802,34 @@ export const App: React.FC = () => {
 			/>
 
 			{dragCounter > 0 && <DragOverlay />}
-			<ProgressBar />
 
 			<TopBar
 				searchText={searchText}
 				searchField={searchField}
-				onSearchChange={(text) => storeActions.setSearch(text)}
-				onSearchFieldChange={(text, field) => storeActions.setSearch(text, field)}
+				onSearchChange={(text) => useStore.getState().setSearch(text)}
+				onSearchFieldChange={(text, field) => useStore.getState().setSearch(text, field)}
 				onOpenDirectory={handleOpenDirectory}
 				onOpenExtract={() => setIsMappingModalOpen(true)}
-				onEmbed={() => storeActions.saveAllChanges()}
+				onEmbed={() => useStore.getState().saveAllChanges()}
 				onOpenMirror={() => setIsMirrorModalOpen(true)}
 				onOpenSettings={() => setIsSettingsModalOpen(true)}
 				hasFiles={files.length > 0}
 				isDirty={isDirty}
-				showTooltips={settings.showTooltips}
 				statusBar={<AgentStatusBar />}
 			/>
+			<ProgressBar />
 
 			<TableContainer ref={tableContainerRef}>
 				{sortedFiles.length === 0 && !isLoading ? (
 					<EmptyState onOpenDirectory={handleOpenDirectory} />
 				) : (
-					<Table>
+					<Table role="grid" aria-rowcount={sortedFiles.length}>
 						<thead>
 							<tr>
 								{visibleColumns.map((column, colIdx) => (
 									<TableHeader
 										key={column.key}
+										data-col-idx={colIdx}
 										isScrolled={scrollState.isScrolled}
 										draggable={column.hideable}
 										style={{
@@ -668,7 +842,7 @@ export const App: React.FC = () => {
 										onClick={column.sortable ? () => handleSort(column.key as keyof Wavedata) : undefined}
 										onContextMenu={column.hideable ? handleColumnContextMenu : undefined}
 										onDragStart={column.hideable ? (e) => handleColumnDragStart(e, colIdx) : undefined}
-										onDragOver={column.hideable ? (e) => { e.preventDefault(); setDragState((p) => ({ ...p, dropTargetIndex: colIdx })); } : undefined}
+										onDragOver={column.hideable ? handleColumnHeaderDragOver : undefined}
 										onDrop={column.hideable ? (e) => handleColumnDrop(e, colIdx) : undefined}
 										onDragEnd={() => setDragState({ isDragging: false, draggedColumnIndex: null, dropTargetIndex: null })}>
 										{column.label}
@@ -680,9 +854,7 @@ export const App: React.FC = () => {
 							</tr>
 						</thead>
 						<tbody>
-							{sortedFiles.map((file) => {
-								const originalIndex = filePathToIndex.get(file.filePath);
-								if (originalIndex === undefined) return null;
+							{sortedFiles.map((file, visibleIndex) => {
 								const originalFile = filePathToOriginal.get(file.filePath);
 
 								return (
@@ -690,11 +862,11 @@ export const App: React.FC = () => {
 										key={file.filePath}
 										file={file}
 										originalFile={originalFile}
-										originalIndex={originalIndex}
-										isSelected={selectedRows.includes(originalIndex)}
+										rowIndex={visibleIndex}
+										isSelected={selectedSet.has(file.filePath)}
 										isCurrentPlaying={currentFile?.filePath === file.filePath && isPlaying}
 										visibleColumns={visibleColumns}
-										onSelect={storeActions.selectFile}
+										onSelect={handleRowSelect}
 										onContextMenu={handleContextMenu}
 										onCellEdit={handleCellEdit}
 										onPlayAudio={handlePlayAudio}
@@ -730,7 +902,7 @@ export const App: React.FC = () => {
 					)}
 					<ContextMenuSeparator />
 					<ContextMenuItem danger onClick={handleRemoveFile} data-context-menu>
-						{selectedRows.includes(contextMenu.fileIndex) && selectedRows.length > 1
+						{selectedRows.includes(contextMenu.filePath) && selectedRows.length > 1
 							? `Remove ${selectedRows.length} files`
 							: 'Remove file'}
 						<ContextMenuShortcut>Del</ContextMenuShortcut>
@@ -745,17 +917,17 @@ export const App: React.FC = () => {
 					{orderedColumns.filter((c) => c.hideable).map((column) => (
 						<ContextMenuItem
 							key={column.key}
-							onClick={() => { storeActions.toggleColumnVisibility(column.key as keyof ColumnVisibilityState); setColumnContextMenu(null); }}
+							onClick={() => { useStore.getState().toggleColumnVisibility(column.key as keyof ColumnVisibilityState); setColumnContextMenu(null); }}
 							data-column-context-menu>
 							<CheckboxIcon checked={!!columnVisibility[column.key as keyof ColumnVisibilityState]} color="var(--accent-primary)" />
 							{column.label}
 						</ContextMenuItem>
 					))}
-					<ContextMenuItem onClick={() => { storeActions.resetColumnVisibility(); setColumnContextMenu(null); }} data-column-context-menu
+					<ContextMenuItem onClick={() => { useStore.getState().resetColumnVisibility(); setColumnContextMenu(null); }} data-column-context-menu
 						style={{ borderTop: '1px solid var(--border-secondary)', marginTop: '4px', paddingTop: '8px' }}>
 						Reset Column Visibility
 					</ContextMenuItem>
-					<ContextMenuItem onClick={() => { storeActions.resetColumnOrder(); setColumnContextMenu(null); }} data-column-context-menu>
+					<ContextMenuItem onClick={() => { useStore.getState().resetColumnOrder(); setColumnContextMenu(null); }} data-column-context-menu>
 						Reset Column Order
 					</ContextMenuItem>
 				</ContextMenu>,

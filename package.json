@@ -1,15 +1,17 @@
 {
 	"name": "metadata-electron",
-	"productName": "metadata-electron",
+	"productName": "Metadata Editor",
 	"version": "1.0.0",
-	"description": "My Electron application description",
+	"description": "Desktop metadata editor for WAV/BWF audio files",
 	"main": ".webpack/main",
 	"scripts": {
 		"start": "electron-forge start",
 		"package": "electron-forge package",
 		"make": "electron-forge make",
 		"publish": "electron-forge publish",
-		"lint": "eslint --ext .ts,.tsx ."
+		"lint": "eslint --ext .ts,.tsx .",
+		"lint:fix": "eslint --ext .ts,.tsx src --fix",
+		"typecheck": "tsc --noEmit -p tsconfig.json"
 	},
 	"keywords": [],
 	"author": {
@@ -17,6 +19,9 @@
 		"email": "35614612+grumpaphone@users.noreply.github.com"
 	},
 	"license": "MIT",
+	"engines": {
+		"node": ">=18.17"
+	},
 	"devDependencies": {
 		"@babel/core": "^7.27.4",
 		"@babel/preset-react": "^7.27.1",
@@ -34,14 +39,16 @@
 		"@types/node": "^20.12.12",
 		"@types/react": "^18.3.3",
 		"@types/react-dom": "^18.3.0",
-		"@typescript-eslint/eslint-plugin": "^5.0.0",
-		"@typescript-eslint/parser": "^5.0.0",
+		"@typescript-eslint/eslint-plugin": "^7.18.0",
+		"@typescript-eslint/parser": "^7.18.0",
 		"@vercel/webpack-asset-relocator-loader": "1.7.3",
 		"babel-loader": "^10.0.0",
 		"css-loader": "^6.0.0",
-		"electron": "28.3.1",
+		"electron": "^41.2.1",
 		"eslint": "^8.0.0",
 		"eslint-plugin-import": "^2.25.0",
+		"eslint-plugin-react": "^7.34.0",
+		"eslint-plugin-react-hooks": "^4.6.0",
 		"fork-ts-checker-webpack-plugin": "^7.2.13",
 		"node-loader": "^2.0.0",
 		"style-loader": "^3.3.1",

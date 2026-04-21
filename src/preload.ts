@@ -1,17 +1,14 @@
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import { IElectronAPI, CHANNELS } from './ipc-api';
-
-export interface LoadingProgress {
-	fileName: string;
-	percentage: number;
-	processed: number;
-	total: number;
-}
+import type { LoadingProgress, AgentStatus } from './types';
 
 const createListener =
-	(channel: string) => (callback: (...args: any[]) => void) => {
-		const subscription = (event: Electron.IpcRendererEvent, ...args: any[]) =>
-			callback(...args);
+	<T extends unknown[]>(channel: string) =>
+	(callback: (...args: T) => void) => {
+		const subscription = (
+			_event: Electron.IpcRendererEvent,
+			...args: T
+		) => callback(...args);
 		ipcRenderer.on(channel, subscription);
 		return () => {
 			ipcRenderer.removeListener(channel, subscription);
@@ -29,20 +26,15 @@ const electronAPI: IElectronAPI = {
 		ipcRenderer.invoke(CHANNELS.checkIsDirectory, filePath),
 	loadAudioFile: (filePath) =>
 		ipcRenderer.invoke(CHANNELS.loadAudioFile, filePath),
-	getPathForFile: (file: File) => (file as any).path || file.name,
+	getPathForFile: (file: File) => webUtils.getPathForFile(file),
 	readMetadata: (filePath) =>
 		ipcRenderer.invoke(CHANNELS.readMetadata, filePath),
 	writeMetadata: (filePath, metadata) =>
 		ipcRenderer.invoke(CHANNELS.writeMetadata, filePath, metadata),
-	batchUpdateMetadata: (updates) =>
-		ipcRenderer.invoke(CHANNELS.batchUpdateMetadata, updates),
-	batchExtractMetadata: (filePaths) =>
-		ipcRenderer.invoke(CHANNELS.batchExtractMetadata, filePaths),
-	setCurrentFiles: (files) =>
-		ipcRenderer.invoke(CHANNELS.setCurrentFiles, files),
-	mirrorFiles: (config) => ipcRenderer.invoke(CHANNELS.mirrorFiles, config),
-	checkFileConflicts: (config) =>
-		ipcRenderer.invoke(CHANNELS.checkFileConflicts, config),
+	mirrorFiles: (config, files) =>
+		ipcRenderer.invoke(CHANNELS.mirrorFiles, config, files),
+	checkFileConflicts: (config, files) =>
+		ipcRenderer.invoke(CHANNELS.checkFileConflicts, config, files),
 	startFileWatching: (filePath: string) =>
 		ipcRenderer.invoke(CHANNELS.startFileWatching, filePath),
 	stopFileWatching: () =>
@@ -50,20 +42,23 @@ const electronAPI: IElectronAPI = {
 	getAgentStatuses: () => ipcRenderer.invoke(CHANNELS.getAgentStatuses),
 	toggleAgent: (name, active) =>
 		ipcRenderer.invoke(CHANNELS.toggleAgent, name, active),
-	triggerAgent: (name) => ipcRenderer.invoke(CHANNELS.triggerAgent, name),
-	onFileChanged: createListener(CHANNELS.onFileChanged),
-	onProgressUpdate: createListener(CHANNELS.onProgressUpdate),
-	onAgentStatusChange: createListener(CHANNELS.onAgentStatusChange),
-	onAutoSaveRequest: createListener(CHANNELS.onAutoSaveRequest),
-	removeAllListeners: (channel) => ipcRenderer.removeAllListeners(channel),
-	createTestFiles: () => ipcRenderer.invoke(CHANNELS.createTestFiles),
-	debugLog: (message: string, data?: any) =>
-		ipcRenderer.invoke(CHANNELS.debugLog, message, data),
+	onFileChanged: createListener<[string]>(CHANNELS.onFileChanged),
+	onProgressUpdate: createListener<[LoadingProgress]>(CHANNELS.onProgressUpdate),
+	onAgentStatusChange: createListener<[AgentStatus[]]>(CHANNELS.onAgentStatusChange),
+	debugLog: (message: string, data?: unknown) => {
+		// Fire-and-forget; main uses ipcMain.handle so we invoke but discard the promise.
+		void ipcRenderer.invoke(CHANNELS.debugLog, message, data);
+	},
 	windowMinimize: () => ipcRenderer.invoke(CHANNELS.windowMinimize),
 	windowClose: () => ipcRenderer.invoke(CHANNELS.windowClose),
 	windowToggleFullscreen: () =>
 		ipcRenderer.invoke(CHANNELS.windowToggleFullscreen),
 };
+
+if (process.env.NODE_ENV !== 'production') {
+	electronAPI.createTestFiles = () =>
+		ipcRenderer.invoke(CHANNELS.createTestFiles);
+}
 
 contextBridge.exposeInMainWorld('electronAPI', electronAPI);
 

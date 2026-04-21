@@ -1,5 +1,6 @@
 import React from 'react';
 import styled from '@emotion/styled';
+import { FullscreenIcon } from './Icons';
 
 const Controls = styled.div`
 	display: flex;
@@ -45,10 +46,23 @@ const LightSymbol = styled.span`
 	opacity: 0;
 	transition: opacity 0.1s ease;
 	pointer-events: none;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
 	body.reduce-motion & { transition: none; }
 `;
 
+const isMac = (): boolean => {
+	if (typeof navigator === 'undefined') return true;
+	const platform = (navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData?.platform
+		?? navigator.platform
+		?? '';
+	return /mac/i.test(platform) || /mac/i.test(navigator.userAgent || '');
+};
+
 export const WindowControls: React.FC = () => {
+	if (!isMac()) return null;
+
 	const onClose = () => window.electronAPI?.windowClose?.();
 	const onMinimize = () => window.electronAPI?.windowMinimize?.();
 	const onZoom = () => window.electronAPI?.windowToggleFullscreen?.();
@@ -62,7 +76,7 @@ export const WindowControls: React.FC = () => {
 				<LightSymbol>&#8722;</LightSymbol>
 			</Light>
 			<Light aria-label='Toggle fullscreen' color='#28c840' onClick={onZoom}>
-				<LightSymbol>&#43;</LightSymbol>
+				<LightSymbol><FullscreenIcon size={8} color='rgba(0,0,0,0.55)' /></LightSymbol>
 			</Light>
 		</Controls>
 	);

@@ -1,7 +1,8 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import styled from '@emotion/styled';
 import { VibrancyLayer } from './VibrancyLayer';
 import { useFocusTrap } from '../utils/useFocusTrap';
+import { useModalKeyboard } from '../hooks/useModal';
 
 const DialogOverlay = styled.div`
 	position: fixed;
@@ -56,23 +57,21 @@ interface ErrorDialogProps {
 
 export const ErrorDialog: React.FC<ErrorDialogProps> = ({ message, onClose }) => {
 	const trapRef = useFocusTrap(!!message);
-
-	useEffect(() => {
-		if (!message) return;
-		const handleEscape = (e: KeyboardEvent) => {
-			if (e.key === 'Escape') onClose();
-		};
-		document.addEventListener('keydown', handleEscape);
-		return () => document.removeEventListener('keydown', handleEscape);
-	}, [message, onClose]);
+	useModalKeyboard(!!message, onClose);
 
 	if (!message) return null;
 
 	return (
 		<DialogOverlay onClick={onClose}>
-			<DialogContent ref={trapRef} intensity="strong" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Error">
-				<Title>Error</Title>
-				<Message>{message}</Message>
+			<DialogContent
+				ref={trapRef}
+				onClick={(e) => e.stopPropagation()}
+				role="alertdialog"
+				aria-modal="true"
+				aria-labelledby="error-dialog-title"
+				aria-describedby="error-dialog-body">
+				<Title id="error-dialog-title">Error</Title>
+				<Message id="error-dialog-body">{message}</Message>
 				<CloseButton onClick={onClose}>Close</CloseButton>
 			</DialogContent>
 		</DialogOverlay>

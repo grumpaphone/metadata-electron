@@ -1,6 +1,6 @@
 {
 	"compilerOptions": {
-		"target": "es2016",
+		"target": "ES2022",
 		"module": "commonjs",
 		"jsx": "react-jsx",
 		"esModuleInterop": true,
@@ -9,11 +9,15 @@
 		"skipLibCheck": true,
 		"sourceMap": true,
 		"baseUrl": ".",
-		"outDir": "dist",
 		"moduleResolution": "node",
 		"resolveJsonModule": true,
 		"noImplicitAny": true,
+		"noImplicitOverride": true,
+		"noFallthroughCasesInSwitch": true,
 		"allowJs": true
+		// TODO: enable "noUncheckedIndexedAccess": true once existing index access
+		// patterns are cleaned up. A trial produced >20 errors across src/, so it
+		// is deferred to a follow-up. "strict: true" is prioritized here.
 	},
 	"include": ["src/**/*", "src/font-declarations.d.ts"],
 	"exclude": ["node_modules/**/*"]

@@ -5,11 +5,7 @@ import { useStore } from '../store';
 import { shallow } from 'zustand/shallow';
 
 const Container = styled.div`
-	position: fixed;
-	top: 52px;
-	left: 0;
-	right: 0;
-	z-index: 50;
+	flex: 0 0 auto;
 	padding: 8px 16px;
 	background: var(--bg-secondary);
 	border-bottom: 1px solid var(--border-secondary);
@@ -50,15 +46,19 @@ export const ProgressBar: React.FC = () => {
 
 	if (!progress) return null;
 
+	const { current, total, message } = progress;
+	const percentage = total > 0 ? (current / total) * 100 : 0;
+	const percentLabel = Math.round(percentage);
+
 	return (
 		<Container>
 			<Label>
-				{progress.fileName} ({progress.processed}/{progress.total})
+				{message} ({current}/{total})
 			</Label>
 			<Track>
-				<Fill percent={progress.percentage} />
+				<Fill percent={percentage} />
 			</Track>
-			<Label style={{ minWidth: 'auto' }}>{progress.percentage}%</Label>
+			<Label style={{ minWidth: 'auto' }}>{percentLabel}%</Label>
 		</Container>
 	);
 };

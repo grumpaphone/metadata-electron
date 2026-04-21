@@ -7,12 +7,14 @@ export function useFocusTrap(isActive: boolean) {
 		if (!isActive || !containerRef.current) return;
 
 		const container = containerRef.current;
+		const previouslyFocused = document.activeElement as HTMLElement | null;
 		const focusableSelector =
 			'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
 
 		const getFocusableElements = () =>
 			Array.from(container.querySelectorAll<HTMLElement>(focusableSelector))
-				.filter((el) => !el.hasAttribute('disabled'));
+				.filter((el) => !el.hasAttribute('disabled'))
+				.filter((el) => el.offsetParent !== null && !el.hasAttribute('hidden'));
 
 		// Focus the first focusable element
 		const focusable = getFocusableElements();
@@ -43,7 +45,14 @@ export function useFocusTrap(isActive: boolean) {
 		};
 
 		container.addEventListener('keydown', handleKeyDown);
-		return () => container.removeEventListener('keydown', handleKeyDown);
+		return () => {
+			container.removeEventListener('keydown', handleKeyDown);
+			try {
+				previouslyFocused?.focus();
+			} catch {
+				/* element may have been removed from the DOM */
+			}
+		};
 	}, [isActive]);
 
 	return containerRef;

@@ -307,6 +307,7 @@ const TooltipButton: React.FC<TooltipButtonProps> = ({
 	);
 };
 
+// KEEP IN SYNC WITH src/renderer/store/filterUtils.ts SEARCHABLE_FIELDS
 const SEARCH_OPTIONS = [
 	{ value: 'all', label: 'All Fields' },
 	{ value: 'filename', label: 'Filename' },
@@ -330,19 +331,19 @@ interface TopBarProps {
 	onOpenSettings: () => void;
 	hasFiles: boolean;
 	isDirty: boolean;
-	showTooltips: boolean;
 	statusBar?: React.ReactNode;
 }
 
 export const TopBar: React.FC<TopBarProps> = ({
 	searchText, searchField, onSearchChange, onSearchFieldChange,
 	onOpenDirectory, onOpenExtract, onEmbed, onOpenMirror, onOpenSettings,
-	hasFiles, isDirty, showTooltips, statusBar,
+	hasFiles, isDirty, statusBar,
 }) => {
 	const [isFilterOpen, setFilterOpen] = useState(false);
 	const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
 	const [focusedIndex, setFocusedIndex] = useState(-1);
 	const filterContainerRef = useRef<HTMLDivElement>(null);
+	const searchInputRef = useRef<HTMLInputElement>(null);
 
 	const calculateDropdownPosition = useCallback(() => {
 		if (filterContainerRef.current) {
@@ -375,6 +376,7 @@ export const TopBar: React.FC<TopBarProps> = ({
 				if (focusedIndex >= 0 && focusedIndex < SEARCH_OPTIONS.length) {
 					onSearchFieldChange(searchText, SEARCH_OPTIONS[focusedIndex].value);
 					setFilterOpen(false);
+					searchInputRef.current?.focus();
 				}
 				break;
 			case 'Escape':
@@ -412,6 +414,7 @@ export const TopBar: React.FC<TopBarProps> = ({
 				</TooltipButton>
 				<SearchContainer ref={filterContainerRef} onKeyDown={handleDropdownKeyDown}>
 					<SearchInput
+						ref={searchInputRef}
 						type="text"
 						placeholder={searchField === 'all' ? 'Search' : `Search ${SEARCH_OPTIONS.find((o) => o.value === searchField)?.label || 'Filename'}...`}
 						value={searchText}
@@ -421,6 +424,13 @@ export const TopBar: React.FC<TopBarProps> = ({
 					<DropdownArrow
 						isOpen={isFilterOpen}
 						onClick={handleDropdownToggle}
+						onKeyDown={(e) => {
+							if (e.key === 'Enter' || e.key === ' ') {
+								if (e.key === ' ') e.preventDefault();
+								handleDropdownToggle();
+							}
+						}}
+						tabIndex={0}
 						title="Select search field"
 						role="button"
 						aria-haspopup="listbox"
@@ -439,6 +449,7 @@ export const TopBar: React.FC<TopBarProps> = ({
 										onClick={() => {
 											onSearchFieldChange(searchText, option.value);
 											setFilterOpen(false);
+											searchInputRef.current?.focus();
 										}}>
 										{option.label}
 									</DropdownItem>

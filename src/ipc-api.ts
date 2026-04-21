@@ -3,6 +3,7 @@ import {
 	AgentStatus,
 	MirrorConfiguration,
 	MirrorResult,
+	LoadingProgress,
 } from './types';
 
 /**
@@ -21,16 +22,12 @@ export const CHANNELS = {
 	// Metadata
 	readMetadata: 'ipc:read-metadata',
 	writeMetadata: 'ipc:write-metadata',
-	batchUpdateMetadata: 'ipc:batch-update-metadata',
-	batchExtractMetadata: 'ipc:batch-extract-metadata',
 	// Mirror Feature
-	setCurrentFiles: 'ipc:set-current-files',
 	mirrorFiles: 'ipc:mirror-files',
 	checkFileConflicts: 'ipc:check-file-conflicts',
 	// Agents & Status
 	getAgentStatuses: 'ipc:agents-get-statuses',
 	toggleAgent: 'ipc:agents-toggle',
-	triggerAgent: 'ipc:agents-trigger',
 	// File Watching
 	startFileWatching: 'ipc:start-file-watching',
 	stopFileWatching: 'ipc:stop-file-watching',
@@ -38,7 +35,6 @@ export const CHANNELS = {
 	onFileChanged: 'ipc:on-file-changed',
 	onProgressUpdate: 'ipc:on-progress-update',
 	onAgentStatusChange: 'ipc:on-agent-status-change',
-	onAutoSaveRequest: 'ipc:on-auto-save-request',
 	// Test Utilities
 	createTestFiles: 'ipc:create-test-files',
 	// Debug
@@ -67,36 +63,38 @@ export interface IElectronAPI {
 	// Metadata
 	readMetadata: (filePath: string) => Promise<Wavedata>;
 	writeMetadata: (filePath: string, metadata: Wavedata) => Promise<void>;
-	batchUpdateMetadata: (
-		updates: { filePath: string; field: keyof Wavedata; value: any }[]
-	) => Promise<void>;
-	batchExtractMetadata: (filePaths: string[]) => Promise<Partial<Wavedata>[]>;
 	// Mirror Feature
-	setCurrentFiles: (files: Wavedata[]) => Promise<void>;
-	mirrorFiles: (config: MirrorConfiguration) => Promise<MirrorResult>;
-	checkFileConflicts: (config: MirrorConfiguration) => Promise<string[]>;
+	mirrorFiles: (
+		config: MirrorConfiguration,
+		files: Wavedata[]
+	) => Promise<MirrorResult>;
+	checkFileConflicts: (
+		config: MirrorConfiguration,
+		files: Wavedata[]
+	) => Promise<string[]>;
 	// Agents & Status
 	getAgentStatuses: () => Promise<AgentStatus[]>;
 	toggleAgent: (name: string, active: boolean) => Promise<void>;
-	triggerAgent: (name: string) => Promise<void>;
 	// File Watching
 	startFileWatching: (filePath: string) => Promise<void>;
 	stopFileWatching: () => Promise<void>;
 	// Listeners
 	onFileChanged: (callback: (filePath: string) => void) => () => void;
-	onProgressUpdate: (callback: (progress: any) => void) => () => void;
-	onAgentStatusChange: (callback: (status: any) => void) => () => void;
-	onAutoSaveRequest: (callback: (filePaths: string[]) => void) => () => void;
-	removeAllListeners: (channel: string) => void;
+	onProgressUpdate: (
+		callback: (progress: LoadingProgress) => void
+	) => () => void;
+	onAgentStatusChange: (
+		callback: (statuses: AgentStatus[]) => void
+	) => () => void;
 	// Test Utilities
-	createTestFiles: () => Promise<{
+	createTestFiles?: () => Promise<{
 		success: boolean;
 		directory: string;
 		files?: string[];
 		errors?: Array<{ filePath: string; error: string }>;
 	}>;
 	// Debug
-	debugLog: (message: string, data?: any) => Promise<void>;
+	debugLog: (message: string, data?: unknown) => void;
 	// Window Controls
 	windowMinimize: () => Promise<void>;
 	windowClose: () => Promise<void>;

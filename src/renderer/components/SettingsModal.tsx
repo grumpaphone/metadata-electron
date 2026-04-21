@@ -1,7 +1,8 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import styled from '@emotion/styled';
 import { VibrancyLayer } from './VibrancyLayer';
 import { useFocusTrap } from '../utils/useFocusTrap';
+import { useModalKeyboard } from '../hooks/useModal';
 import { CloseIcon } from './Icons';
 
 const ModalOverlay = styled.div`
@@ -152,21 +153,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 	fileWatcherActive, onFileWatcherToggle,
 }) => {
 	const trapRef = useFocusTrap(isOpen);
-
-	useEffect(() => {
-		if (!isOpen) return;
-		const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-		document.addEventListener('keydown', handler);
-		return () => document.removeEventListener('keydown', handler);
-	}, [isOpen, onClose]);
+	useModalKeyboard(isOpen, onClose);
 
 	if (!isOpen) return null;
 
 	return (
 		<ModalOverlay onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-			<ModalContent ref={trapRef} intensity="strong" role="dialog" aria-modal="true" aria-label="Settings">
+			<ModalContent ref={trapRef} role="dialog" aria-modal="true" aria-labelledby="settings-modal-title">
 				<ModalHeader>
-					<Title>Settings</Title>
+					<Title id="settings-modal-title">Settings</Title>
 					<CloseButton onClick={onClose} aria-label="Close settings">
 						<CloseIcon size={16} />
 					</CloseButton>

@@ -2,6 +2,7 @@ import React, { useCallback, useState, useEffect, useRef } from 'react';
 import styled from '@emotion/styled';
 import { Wavedata } from '../../../types';
 import { PlayIcon, PauseIcon } from '../Icons';
+import { basename, formatFileSize, formatTime } from '../../utils/format';
 
 const Row = styled.tr<{ selected?: boolean }>`
 	background: ${(props) => props.selected ? 'var(--table-row-selected)' : 'transparent'};
@@ -35,6 +36,11 @@ const PlayCell = styled(Cell)`
 
 	&:hover {
 		color: var(--accent-primary);
+	}
+
+	&:focus-visible {
+		outline: 2px solid var(--accent-primary);
+		outline-offset: -2px;
 	}
 `;
 
@@ -105,7 +111,10 @@ const DebouncedCellInput: React.FC<{
 		setLocal(newVal);
 		latestValueRef.current = newVal;
 		if (timerRef.current) clearTimeout(timerRef.current);
-		timerRef.current = setTimeout(() => onCommitRef.current(newVal), 150);
+		timerRef.current = setTimeout(() => {
+			onCommitRef.current(newVal);
+			timerRef.current = null;
+		}, 150);
 	}, []);
 
 	// Flush pending commit on unmount to prevent data loss
@@ -121,21 +130,6 @@ const DebouncedCellInput: React.FC<{
 	return <CellInput type="text" value={local} onChange={handleChange} />;
 };
 
-const basename = (p: string) => p.split(/[\\/]/).pop() || '';
-
-const formatDuration = (s: number) => {
-	if (isNaN(s) || s < 0) return '0:00';
-	return `${Math.floor(s / 60)}:${Math.floor(s % 60).toString().padStart(2, '0')}`;
-};
-
-const formatFileSize = (bytes: number) => {
-	if (isNaN(bytes) || bytes === 0) return '0 B';
-	const k = 1024;
-	const sizes = ['B', 'KB', 'MB', 'GB'];
-	const i = Math.floor(Math.log(bytes) / Math.log(k));
-	return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
-};
-
 interface ColumnDef {
 	key: string;
 	hideable: boolean;
@@ -144,40 +138,56 @@ interface ColumnDef {
 interface MetadataTableRowProps {
 	file: Wavedata;
 	originalFile: Wavedata | undefined;
-	originalIndex: number;
+	rowIndex: number;
 	isSelected: boolean;
 	isCurrentPlaying: boolean;
 	visibleColumns: ColumnDef[];
-	onSelect: (index: number, ctrlKey: boolean, shiftKey: boolean) => void;
-	onContextMenu: (e: React.MouseEvent, index: number) => void;
+	onSelect: (filePath: string, ctrlKey: boolean, shiftKey: boolean) => void;
+	onContextMenu: (e: React.MouseEvent, filePath: string) => void;
 	onCellEdit: (filePath: string, field: keyof Wavedata, value: string) => void;
-	onPlayAudio: (file: Wavedata, e: React.MouseEvent) => void;
+	onPlayAudio: (file: Wavedata, e: React.MouseEvent | React.KeyboardEvent) => void;
 }
 
 const MetadataTableRowInner: React.FC<MetadataTableRowProps> = ({
-	file, originalFile, originalIndex, isSelected, isCurrentPlaying,
+	file, originalFile, rowIndex, isSelected, isCurrentPlaying,
 	visibleColumns, onSelect, onContextMenu, onCellEdit, onPlayAudio,
 }) => {
 	const handleRowClick = useCallback((e: React.MouseEvent) => {
 		e.preventDefault();
 		if (e.shiftKey) window.getSelection()?.removeAllRanges();
-		onSelect(originalIndex, e.ctrlKey || e.metaKey, e.shiftKey);
-	}, [originalIndex, onSelect]);
+		onSelect(file.filePath, e.ctrlKey || e.metaKey, e.shiftKey);
+	}, [file.filePath, onSelect]);
 
 	const handleRightClick = useCallback((e: React.MouseEvent) => {
-		onContextMenu(e, originalIndex);
-	}, [originalIndex, onContextMenu]);
+		onContextMenu(e, file.filePath);
+	}, [file.filePath, onContextMenu]);
+
+	const handlePlayKeyDown = useCallback((e: React.KeyboardEvent<HTMLTableCellElement>) => {
+		if (e.key === 'Enter' || e.key === ' ') {
+			e.preventDefault();
+			e.stopPropagation();
+			onPlayAudio(file, e);
+		}
+	}, [file, onPlayAudio]);
 
 	return (
 		<Row
 			selected={isSelected}
 			onClick={handleRowClick}
 			onContextMenu={handleRightClick}
-			aria-selected={isSelected}>
+			aria-selected={isSelected}
+			aria-rowindex={rowIndex + 1}
+			tabIndex={-1}>
 			{visibleColumns.map((column) => {
 				if (column.key === 'audio') {
 					return (
-						<PlayCell key="audio" onClick={(e) => onPlayAudio(file, e)}>
+						<PlayCell
+							key="audio"
+							role="button"
+							tabIndex={0}
+							aria-label={isCurrentPlaying ? 'Pause' : 'Play'}
+							onClick={(e) => onPlayAudio(file, e)}
+							onKeyDown={handlePlayKeyDown}>
 							{isCurrentPlaying ? <PauseIcon size={12} /> : <PlayIcon size={12} />}
 						</PlayCell>
 					);
@@ -201,7 +211,7 @@ const MetadataTableRowInner: React.FC<MetadataTableRowProps> = ({
 						</Cell>
 					);
 				}
-				if (column.key === 'duration') return <Cell key="duration" style={{ color: 'var(--text-secondary)', fontFamily: "'Monaco', 'Menlo', monospace", fontSize: '11px' }}>{formatDuration(file.duration)}</Cell>;
+				if (column.key === 'duration') return <Cell key="duration" style={{ color: 'var(--text-secondary)', fontFamily: "'Monaco', 'Menlo', monospace", fontSize: '11px' }}>{formatTime(file.duration)}</Cell>;
 				if (column.key === 'fileSize') return <Cell key="fileSize" style={{ color: 'var(--text-secondary)', fontSize: '11px' }}>{formatFileSize(file.fileSize)}</Cell>;
 				return null;
 			})}
@@ -215,7 +225,7 @@ export const MetadataTableRow = React.memo(MetadataTableRowInner, (prev, next) =
 		prev.originalFile === next.originalFile &&
 		prev.isSelected === next.isSelected &&
 		prev.isCurrentPlaying === next.isCurrentPlaying &&
-		prev.originalIndex === next.originalIndex &&
+		prev.rowIndex === next.rowIndex &&
 		prev.visibleColumns === next.visibleColumns &&
 		prev.onCellEdit === next.onCellEdit &&
 		prev.onPlayAudio === next.onPlayAudio &&

@@ -45,11 +45,17 @@ const DropZone = styled.div`
 	flex-direction: column;
 	align-items: center;
 	gap: 12px;
+	cursor: pointer;
 	transition: border-color 0.2s ease, background 0.2s ease;
 
 	&:hover {
 		border-color: var(--accent-primary);
 		background: var(--table-row-hover);
+	}
+
+	&:focus-visible {
+		outline: 2px solid var(--accent-primary, #2f7bff);
+		outline-offset: 2px;
 	}
 `;
 
@@ -75,6 +81,11 @@ const OpenButton = styled.button`
 	&:active {
 		transform: translateY(0.5px);
 	}
+
+	&:focus-visible {
+		outline: 2px solid var(--accent-primary, #2f7bff);
+		outline-offset: 2px;
+	}
 `;
 
 const Shortcut = styled.span`
@@ -96,24 +107,50 @@ interface EmptyStateProps {
 	onOpenDirectory?: () => void;
 }
 
-export const EmptyState: React.FC<EmptyStateProps> = ({ onOpenDirectory }) => (
-	<Container>
-		<IconWrapper>
-			<WaveformIcon size={80} />
-		</IconWrapper>
-		<Title>No Files Loaded</Title>
-		<Subtitle>Open a directory or drop WAV files here to start editing metadata.</Subtitle>
-		<DropZone>
-			{onOpenDirectory && (
-				<OpenButton onClick={onOpenDirectory}>
-					<FolderIcon size={14} />
-					Open Directory
-				</OpenButton>
-			)}
-			<Subtitle style={{ marginTop: 0, fontSize: '12px' }}>or drag and drop files</Subtitle>
-		</DropZone>
-		<Shortcut>
-			<kbd>Cmd+O</kbd> to open directory
-		</Shortcut>
-	</Container>
-);
+export const EmptyState: React.FC<EmptyStateProps> = ({ onOpenDirectory }) => {
+	const activate = () => {
+		onOpenDirectory?.();
+	};
+	const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+		if (!onOpenDirectory) return;
+		if (e.key === 'Enter') {
+			e.preventDefault();
+			activate();
+		} else if (e.key === ' ' || e.key === 'Spacebar') {
+			e.preventDefault();
+			activate();
+		}
+	};
+	return (
+		<Container>
+			<IconWrapper>
+				<WaveformIcon size={80} />
+			</IconWrapper>
+			<Title>No Files Loaded</Title>
+			<Subtitle>Open a directory or drop WAV files here to start editing metadata.</Subtitle>
+			<DropZone
+				role="button"
+				tabIndex={0}
+				aria-label="Open directory or drop files"
+				onClick={onOpenDirectory ? activate : undefined}
+				onKeyDown={handleKeyDown}
+			>
+				{onOpenDirectory && (
+					<OpenButton
+						onClick={(e) => {
+							e.stopPropagation();
+							activate();
+						}}
+					>
+						<FolderIcon size={14} />
+						Open Directory
+					</OpenButton>
+				)}
+				<Subtitle style={{ marginTop: 0, fontSize: '12px' }}>or drag and drop files</Subtitle>
+			</DropZone>
+			<Shortcut>
+				<kbd>Cmd+O</kbd> to open directory
+			</Shortcut>
+		</Container>
+	);
+};

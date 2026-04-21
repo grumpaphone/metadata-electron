@@ -16,7 +16,7 @@ export function filterFiles(
 	searchField: string
 ): Wavedata[] {
 	const lowercasedFilter = searchText.toLowerCase();
-	if (!lowercasedFilter) return files;
+	if (!lowercasedFilter) return [...files];
 
 	return files.filter((file) => {
 		if (searchField === 'all') {

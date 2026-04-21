@@ -78,6 +78,28 @@ const DurationTime = styled.div`
 	font-size: 10px;
 `;
 
+const LoadingIndicator = styled.div`
+	font-size: 11px;
+	color: var(--text-muted);
+	margin-left: 6px;
+	display: flex;
+	align-items: center;
+	gap: 4px;
+`;
+
+const Spinner = styled.div`
+	width: 12px;
+	height: 12px;
+	border: 2px solid var(--border-primary);
+	border-top-color: var(--accent-primary);
+	border-radius: 50%;
+	animation: spin 0.8s linear infinite;
+
+	@keyframes spin {
+		to { transform: rotate(360deg); }
+	}
+`;
+
 const MinimizeButton = styled.button`
 	background: transparent;
 	border: none;
@@ -97,6 +119,23 @@ const MinimizeButton = styled.button`
 `;
 
 const basename = (p: string) => p.split(/[\\/]/).pop() || '';
+
+const extToMime: Record<string, string> = {
+	'.wav': 'audio/wav',
+	'.aif': 'audio/aiff',
+	'.aiff': 'audio/aiff',
+	'.mp3': 'audio/mpeg',
+	'.flac': 'audio/flac',
+	'.ogg': 'audio/ogg',
+	'.m4a': 'audio/mp4',
+};
+
+const mimeFromPath = (path: string | undefined | null): string => {
+	if (!path) return 'audio/wav';
+	const match = path.toLowerCase().match(/\.[^.]+$/);
+	const ext = match?.[0];
+	return (ext && extToMime[ext]) || 'audio/wav';
+};
 
 const formatFileSize = (bytes: number) => {
 	if (isNaN(bytes) || bytes === 0) return '';
@@ -156,7 +195,7 @@ export const AudioPlayer: React.FC = () => {
 
 		controller.setCallbacks({
 			onTimeUpdate: (time) => {
-				useStore.getState().setCurrentTime(time);
+				// Only update DOM directly — store is written on seek/finish.
 				updateTimeDisplay(time);
 			},
 			onReady: (duration) => {
@@ -165,7 +204,12 @@ export const AudioPlayer: React.FC = () => {
 				updateTimeDisplay(0);
 			},
 			onFinish: () => {
+				useStore.getState().setCurrentTime(0);
 				useStore.getState().stopAudio();
+			},
+			onSeek: (time) => {
+				useStore.getState().setCurrentTime(time);
+				updateTimeDisplay(time);
 			},
 			onError: (msg) => {
 				console.error('[PLAYER] WaveSurfer error:', msg);
@@ -189,27 +233,42 @@ export const AudioPlayer: React.FC = () => {
 			const controller = controllerRef.current;
 			if (!controller) return;
 
-			const audioData = useStore.getState().getAudioDataFromCache(currentFile.filePath);
+			const audioData = useStore.getState().audioDataCache.get(currentFile.filePath);
 			if (audioData) {
 				useStore.getState().setWaveformReady(false);
 				currentFilePathRef.current = currentFile.filePath;
 				const shouldAutoPlay = useStore.getState().audioPlayer.isPlaying;
-				controller.loadBlob(audioData, shouldAutoPlay);
+				const mimeType = mimeFromPath(currentFile.filePath);
+				controller.loadBlob(audioData, shouldAutoPlay, mimeType);
 			}
 		}
 	}, [currentFile?.filePath, isLoading]);
 
-	// Handle play/pause state changes
+	// Handle play/pause state changes. If not ready yet, set intent so it plays/pauses on ready.
 	useEffect(() => {
 		const controller = controllerRef.current;
-		if (controller && controller.isReady()) {
-			if (isPlaying) {
-				controller.play();
-			} else {
-				controller.pause();
-			}
+		if (!controller) return;
+		if (isPlaying) {
+			if (controller.isReady()) controller.play();
+			else controller.setPlayOnReady(true);
+		} else {
+			if (controller.isReady()) controller.pause();
+			else controller.setPlayOnReady(false);
 		}
 	}, [isPlaying]);
+
+	// Reset WaveSurfer when the current file is cleared (e.g., file removed while playing).
+	useEffect(() => {
+		if (!currentFile?.filePath) {
+			const controller = controllerRef.current;
+			if (controller) {
+				controller.stop();
+			}
+			currentFilePathRef.current = null;
+			if (currentTimeRef.current) currentTimeRef.current.textContent = '0:00';
+			if (durationTimeRef.current) durationTimeRef.current.textContent = '0:00';
+		}
+	}, [currentFile?.filePath]);
 
 	// Handle volume changes
 	useEffect(() => {
@@ -227,6 +286,12 @@ export const AudioPlayer: React.FC = () => {
 	return (
 		<PlayerContainer isVisible={isVisible}>
 			<Controls />
+			{isLoading && (
+				<LoadingIndicator aria-live="polite">
+					<Spinner />
+					<span>Loading...</span>
+				</LoadingIndicator>
+			)}
 			<TrackInfo>
 				<TrackName title={currentFile ? basename(currentFile.filePath) : ''}>
 					{currentFile ? basename(currentFile.filePath) : ''}

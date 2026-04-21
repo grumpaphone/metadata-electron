@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import styled from '@emotion/styled';
 import { VibrancyLayer } from './VibrancyLayer';
 import { useFocusTrap } from '../utils/useFocusTrap';
+import { useModalKeyboard } from '../hooks/useModal';
 
 const ModalOverlay = styled.div`
 	position: fixed;
@@ -103,20 +104,32 @@ export const FilenameMappingModal: React.FC<FilenameMappingModalProps> = ({
 
 	const [mapping, setMapping] = useState<Record<number, string>>({});
 	const trapRef = useFocusTrap(isOpen);
+	useModalKeyboard(isOpen, onClose);
 
+	// Reset mapping state each time the modal opens so stale values don't carry
+	// between different files.
 	useEffect(() => {
-		if (!isOpen) return;
-		const handleEscape = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-		document.addEventListener('keydown', handleEscape);
-		return () => document.removeEventListener('keydown', handleEscape);
-	}, [isOpen, onClose]);
+		if (isOpen) setMapping({});
+	}, [isOpen]);
+
+	const handleApply = () => {
+		const hasAssignments = Object.values(mapping).some((v) => v && v !== 'ignore');
+		if (hasAssignments) {
+			const ok = window.confirm(
+				'Applying this mapping will overwrite existing metadata values where fields are mapped. Continue?'
+			);
+			if (!ok) return;
+		}
+		onApply(mapping);
+		onClose();
+	};
 
 	if (!isOpen) return null;
 
 	return (
 		<ModalOverlay onClick={onClose}>
-			<ModalContent ref={trapRef} intensity="strong" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Map Filename Parts">
-				<Title>Map Filename Parts</Title>
+			<ModalContent ref={trapRef} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="filename-mapping-modal-title">
+				<Title id="filename-mapping-modal-title">Map Filename Parts</Title>
 				<Instructions>Assign each part of the filename to a metadata field.</Instructions>
 				{filenameParts.map((part, index) => (
 					<MappingRow key={index}>
@@ -132,7 +145,7 @@ export const FilenameMappingModal: React.FC<FilenameMappingModalProps> = ({
 				))}
 				<ButtonContainer>
 					<Button onClick={onClose}>Cancel</Button>
-					<Button onClick={() => { onApply(mapping); onClose(); }} primary>Apply Mapping</Button>
+					<Button onClick={handleApply} primary>Apply Mapping</Button>
 				</ButtonContainer>
 			</ModalContent>
 		</ModalOverlay>

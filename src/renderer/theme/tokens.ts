@@ -45,7 +45,7 @@ export interface ThemeTokens {
 	'--cell-editable-hint': string;
 	'--cell-dirty-bg': string;
 
-	// Modal
+	// Modal overlay backdrop
 	'--modal-overlay': string;
 
 	// Audio player

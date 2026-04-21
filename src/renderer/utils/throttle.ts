@@ -15,12 +15,16 @@ export const throttle = <T extends AnyFunction>(
 		lastArgs = args;
 		if (!inThrottle) {
 			inThrottle = true;
+			// Clear stored args so a leading-only call doesn't trigger a
+			// redundant trailing invocation with the same arguments.
+			lastArgs = null;
 			func(...args);
 			setTimeout(() => {
 				inThrottle = false;
-				if (lastArgs) {
-					func(...lastArgs);
+				if (lastArgs !== null) {
+					const pending = lastArgs;
 					lastArgs = null;
+					func(...pending);
 				}
 			}, limit);
 		}

@@ -1,17 +1,13 @@
 import styled from '@emotion/styled';
 
-export interface VibrancyLayerProps {
-	intensity?: 'light' | 'medium' | 'strong';
-}
-
 /**
- * VibrancyLayer component for authentic glass effects
- * Used for modals, popovers, and dynamic overlays
+ * VibrancyLayer component used for modals, popovers, and dynamic overlays.
+ * Applies a translucent background with a backdrop blur, with an opaque
+ * fallback for users who prefer reduced transparency.
  */
-export const VibrancyLayer = styled.div<VibrancyLayerProps>`
+export const VibrancyLayer = styled.div`
 	position: relative;
 
-	/* Apple Liquid Glass: 16px for modal components per spec */
 	border-radius: 16px;
 	overflow: hidden;
 	border: 1px solid var(--border-primary);

@@ -53,7 +53,8 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
 
 		applyPalette(root, isDarkMode ? darkTokens : lightTokens);
 
-		root.style.setProperty('--font-size-base', `${fontSize}px`);
+		const fontPx = String(fontSize).replace(/px$/i, '');
+		root.style.setProperty('--font-size-base', `${fontPx}px`);
 		root.style.setProperty(
 			'--glass-navigation',
 			prefersReducedTransparency ? 'none' : 'blur(20px) saturate(180%)'

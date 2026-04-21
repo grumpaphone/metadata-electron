@@ -6,7 +6,6 @@ import { Wavedata, MirrorConfiguration, AgentStatus } from '../types';
 import * as chokidar from 'chokidar';
 import { CHANNELS } from '../ipc-api';
 import { metadataService } from './services/MetadataService';
-import { filenameParser } from './services/FilenameParser';
 import { mirrorService } from './services/MirrorService';
 import { WaveFile } from 'wavefile';
 
@@ -27,6 +26,66 @@ let fileWatcherPath: string | null = null;
 let fileWatcherLastEvent: Date | null = null;
 let fileWatcherError: string | null = null;
 
+// Path traversal protection: allowlisted roots populated by user-driven
+// dialog selections and directory scans.
+const allowedRoots: Set<string> = new Set();
+
+const MAX_AUDIO_FILE_BYTES = 2 * 1024 * 1024 * 1024; // 2GB
+
+const addAllowedRoot = (rootPath: string): void => {
+	if (!rootPath) return;
+	allowedRoots.add(path.resolve(rootPath));
+};
+
+const assertPathUnderAllowedRoot = (p: string): void => {
+	if (!p || typeof p !== 'string') {
+		throw new Error('Path not under an allowed root: ' + p);
+	}
+	const resolved = path.resolve(p);
+	for (const root of allowedRoots) {
+		if (resolved === root || resolved.startsWith(root + path.sep)) {
+			return;
+		}
+	}
+	throw new Error('Path not under an allowed root: ' + p);
+};
+
+const collectWavFilesRecursively = async (
+	dirPath: string,
+	visited: Set<string> = new Set()
+): Promise<string[]> => {
+	const entries = await fs.promises.readdir(dirPath, { withFileTypes: true });
+	const wavFiles: string[] = [];
+
+	for (const entry of entries) {
+		const entryPath = path.join(dirPath, entry.name);
+		if (entry.isDirectory()) {
+			try {
+				const realSubdir = await fs.promises.realpath(entryPath);
+				if (visited.has(realSubdir)) {
+					continue;
+				}
+				visited.add(realSubdir);
+				wavFiles.push(
+					...(await collectWavFilesRecursively(entryPath, visited))
+				);
+			} catch (error) {
+				console.warn(
+					`[MAIN] Skipping subdirectory ${entryPath} due to error:`,
+					error
+				);
+			}
+			continue;
+		}
+
+		if (entry.isFile() && path.extname(entry.name).toLowerCase() === '.wav') {
+			wavFiles.push(entryPath);
+		}
+	}
+
+	return wavFiles.sort((left, right) => left.localeCompare(right));
+};
+
 const createWindow = () => {
 	mainWindow = new BrowserWindow({
 		height: 800,
@@ -43,7 +102,7 @@ const createWindow = () => {
 			preload: MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY,
 			nodeIntegration: false,
 			contextIsolation: true,
-			webSecurity: true, // Re-enabled since IPC is working
+			webSecurity: true,
 		},
 		acceptFirstMouse: true,
 	});
@@ -55,8 +114,6 @@ const createWindow = () => {
 	} catch (e) {
 		// no-op
 	}
-
-	// Ensure no vibrancy is applied; we want an opaque window
 
 	// Log preload errors for debugging
 	mainWindow.webContents.on('preload-error', (event, preloadPath, error) => {
@@ -86,7 +143,9 @@ const getAgentStatusSnapshot = (): AgentStatus[] => {
 		{
 			name: 'file-watcher',
 			active: watcherActive,
-			lastRun: fileWatcherLastEvent ?? undefined,
+			lastRun: fileWatcherLastEvent
+				? fileWatcherLastEvent.toISOString()
+				: undefined,
 			status: watcherStatus,
 			error: fileWatcherError ?? undefined,
 		},
@@ -110,9 +169,9 @@ const broadcastAgentStatuses = () => {
 	);
 };
 
-const startFileWatcher = (targetPath: string | null) => {
+const startFileWatcher = async (targetPath: string | null): Promise<void> => {
 	if (fileWatcher) {
-		fileWatcher.close();
+		await fileWatcher.close();
 		fileWatcher = null;
 	}
 
@@ -191,6 +250,7 @@ ipcMain.handle(CHANNELS.windowToggleFullscreen, async () => {
 
 ipcMain.handle(CHANNELS.readMetadata, async (event, filePath: string) => {
 	try {
+		assertPathUnderAllowedRoot(filePath);
 		return await metadataService.readMetadata(filePath);
 	} catch (error) {
 		console.error('[MAIN] readMetadata failed for:', filePath, error);
@@ -201,6 +261,7 @@ ipcMain.handle(CHANNELS.readMetadata, async (event, filePath: string) => {
 ipcMain.handle(
 	CHANNELS.writeMetadata,
 	async (event, filePath: string, metadata: Wavedata) => {
+		assertPathUnderAllowedRoot(filePath);
 		return metadataService.writeMetadata(filePath, metadata);
 	}
 );
@@ -213,7 +274,9 @@ ipcMain.handle(CHANNELS.openFile, async () => {
 	if (canceled || filePaths.length === 0) {
 		return null;
 	}
-	return filePaths[0];
+	const selected = filePaths[0];
+	addAllowedRoot(path.dirname(selected));
+	return selected;
 });
 
 ipcMain.handle(CHANNELS.openDirectory, async () => {
@@ -223,15 +286,17 @@ ipcMain.handle(CHANNELS.openDirectory, async () => {
 	if (canceled) {
 		return { canceled: true, filePaths: [] };
 	}
+	for (const p of filePaths) {
+		addAllowedRoot(p);
+	}
 	return { canceled: false, filePaths };
 });
 
 ipcMain.handle(CHANNELS.scanDirectory, async (event, dirPath: string) => {
 	try {
-		const files = await fs.promises.readdir(dirPath);
-		const wavFiles = files
-			.filter((file) => path.extname(file).toLowerCase() === '.wav')
-			.map((file) => path.join(dirPath, file));
+		addAllowedRoot(dirPath);
+		assertPathUnderAllowedRoot(dirPath);
+		const wavFiles = await collectWavFilesRecursively(dirPath);
 
 		const total = wavFiles.length;
 		const wavedata: Wavedata[] = [];
@@ -246,6 +311,9 @@ ipcMain.handle(CHANNELS.scanDirectory, async (event, dirPath: string) => {
 			try {
 				const metadata = await metadataService.readMetadata(filePath);
 				wavedata.push(metadata);
+				if (event.sender.isDestroyed()) {
+					break;
+				}
 				event.sender.send(CHANNELS.onProgressUpdate, {
 					fileName,
 					processed: index + 1,
@@ -254,6 +322,9 @@ ipcMain.handle(CHANNELS.scanDirectory, async (event, dirPath: string) => {
 				});
 			} catch (error) {
 				console.error(`Failed to parse metadata for ${filePath}:`, error);
+				if (event.sender.isDestroyed()) {
+					break;
+				}
 				event.sender.send(CHANNELS.onProgressUpdate, {
 					fileName,
 					processed: index + 1,
@@ -275,11 +346,13 @@ ipcMain.handle(CHANNELS.scanDirectory, async (event, dirPath: string) => {
 
 ipcMain.handle(CHANNELS.loadAudioFile, async (event, filePath: string) => {
 	try {
+		assertPathUnderAllowedRoot(filePath);
+		const stat = await fs.promises.stat(filePath);
+		if (stat.size > MAX_AUDIO_FILE_BYTES) {
+			throw new Error('File too large to preview');
+		}
 		const buffer = await fs.promises.readFile(filePath);
-		const arrayBuffer = buffer.buffer.slice(
-			buffer.byteOffset,
-			buffer.byteOffset + buffer.byteLength
-		);
+		const arrayBuffer = new Uint8Array(buffer).buffer;
 		return arrayBuffer;
 	} catch (error) {
 		console.error(`Failed to load audio file ${filePath}:`, error);
@@ -289,19 +362,21 @@ ipcMain.handle(CHANNELS.loadAudioFile, async (event, filePath: string) => {
 
 ipcMain.handle(CHANNELS.startFileWatching, async (event, filePath: string) => {
 	if (!filePath) {
-		startFileWatcher(null);
+		await startFileWatcher(null);
 		return;
 	}
-	startFileWatcher(filePath);
+	addAllowedRoot(filePath);
+	assertPathUnderAllowedRoot(filePath);
+	await startFileWatcher(filePath);
 });
 
 ipcMain.handle(CHANNELS.stopFileWatching, async () => {
-	startFileWatcher(null);
+	await startFileWatcher(null);
 });
 
 app.on('before-quit', () => {
 	if (fileWatcher) {
-		fileWatcher.close();
+		void fileWatcher.close();
 	}
 });
 
@@ -336,6 +411,7 @@ process.on('unhandledRejection', (reason, promise) => {
 
 ipcMain.handle(CHANNELS.checkIsDirectory, async (event, filePath: string) => {
 	try {
+		assertPathUnderAllowedRoot(filePath);
 		const stats = await fs.promises.stat(filePath);
 		return stats.isDirectory();
 	} catch (error) {
@@ -441,105 +517,6 @@ ipcMain.handle(CHANNELS.createTestFiles, async () => {
 	};
 });
 
-ipcMain.handle(CHANNELS.batchUpdateMetadata, async (event, updates) => {
-	if (!Array.isArray(updates) || updates.length === 0) {
-		return;
-	}
-
-	type UpdateEntry = {
-		field: keyof Wavedata;
-		value: unknown;
-	};
-
-	const groupedUpdates = updates.reduce((acc, update) => {
-		if (!update || typeof update !== 'object') {
-			return acc;
-		}
-
-		const { filePath, field, value } = update as {
-			filePath: string;
-			field: keyof Wavedata;
-			value: unknown;
-		};
-
-		if (!filePath || typeof filePath !== 'string') {
-			return acc;
-		}
-
-		const entry = acc.get(filePath) ?? [];
-		entry.push({ field, value } as UpdateEntry);
-		acc.set(filePath, entry);
-		return acc;
-	}, new Map<string, UpdateEntry[]>());
-
-	const errors: string[] = [];
-
-	for (const [filePath, fileUpdates] of groupedUpdates.entries()) {
-		try {
-			const metadata = await metadataService.readMetadata(filePath);
-			const updatedMetadata: Wavedata = {
-				...metadata,
-				bwf: metadata.bwf ? { ...metadata.bwf } : undefined,
-				iXML: metadata.iXML
-					? JSON.parse(JSON.stringify(metadata.iXML))
-					: undefined,
-			};
-
-			for (const { field, value } of fileUpdates) {
-				if (!field) continue;
-
-				switch (field) {
-					case 'ixmlCircled':
-					case 'ixmlWildtrack':
-						(updatedMetadata as any)[field] =
-							value === 'true' || value === true ? 'true' : 'false';
-						break;
-					case 'bwf':
-					case 'iXML':
-					case 'fileInfo':
-					case 'duration':
-					case 'fileSize':
-						// Skip unsupported batch updates for complex fields
-						console.warn(
-							`Skipping batch update for unsupported field "${field}" on ${filePath}`
-						);
-						break;
-					default:
-						(updatedMetadata as any)[field] = value;
-						break;
-				}
-			}
-
-			await metadataService.writeMetadata(filePath, updatedMetadata);
-		} catch (error) {
-			const message = error instanceof Error ? error.message : String(error);
-			errors.push(`${filePath}: ${message}`);
-			console.error(`[MAIN] Failed batch update for ${filePath}:`, message);
-		}
-	}
-
-	if (errors.length > 0) {
-		throw new Error(
-			`Failed to update metadata for ${errors.length} file(s): ${errors.join(
-				'; '
-			)}`
-		);
-	}
-});
-
-ipcMain.handle(
-	CHANNELS.batchExtractMetadata,
-	async (event, filePaths: string[]) => {
-		return filePaths
-			.map((filePath) => {
-				const filename = path.basename(filePath);
-				const parsedData = filenameParser.parse(filename);
-				return parsedData ? { ...parsedData, filePath } : null;
-			})
-			.filter((r) => r !== null);
-	}
-);
-
 ipcMain.handle(CHANNELS.getAgentStatuses, async () => {
 	return getAgentStatusSnapshot();
 });
@@ -547,28 +524,16 @@ ipcMain.handle(CHANNELS.getAgentStatuses, async () => {
 ipcMain.handle(CHANNELS.toggleAgent, async (event, name, active) => {
 	if (name === 'file-watcher') {
 		if (!active) {
-			startFileWatcher(null);
+			await startFileWatcher(null);
 			return;
 		}
 
 		if (fileWatcherPath) {
-			startFileWatcher(fileWatcherPath);
+			await startFileWatcher(fileWatcherPath);
 			return;
 		}
 
 		throw new Error('No file path available to start watcher');
-	}
-
-	throw new Error(`Unknown agent: ${name}`);
-});
-
-ipcMain.handle(CHANNELS.triggerAgent, async (event, name) => {
-	if (name === 'file-watcher') {
-		if (fileWatcherPath) {
-			startFileWatcher(fileWatcherPath);
-			return;
-		}
-		throw new Error('No file path available to trigger watcher');
 	}
 
 	throw new Error(`Unknown agent: ${name}`);
@@ -583,22 +548,15 @@ ipcMain.handle(CHANNELS.selectMirrorDestination, async () => {
 	if (canceled || filePaths.length === 0) {
 		return null;
 	}
+	addAllowedRoot(filePaths[0]);
 	return filePaths[0];
-});
-
-// We need a way to pass the current files list to the mirror service
-// Since we don't have global state in the main process, we'll need to pass it from renderer
-let currentFiles: Wavedata[] = [];
-
-ipcMain.handle(CHANNELS.setCurrentFiles, async (event, files: Wavedata[]) => {
-	currentFiles = files;
 });
 
 ipcMain.handle(
 	CHANNELS.mirrorFiles,
-	async (event, config: MirrorConfiguration) => {
+	async (event, config: MirrorConfiguration, files: Wavedata[]) => {
 		try {
-			return await mirrorService.mirrorFiles(config, currentFiles);
+			return await mirrorService.mirrorFiles(config, files ?? []);
 		} catch (error) {
 			console.error('[MAIN] Mirror operation failed:', error);
 			throw error;
@@ -608,9 +566,9 @@ ipcMain.handle(
 
 ipcMain.handle(
 	CHANNELS.checkFileConflicts,
-	async (event, config: MirrorConfiguration) => {
+	async (event, config: MirrorConfiguration, files: Wavedata[]) => {
 		try {
-			return await mirrorService.checkFileConflicts(config, currentFiles);
+			return await mirrorService.checkFileConflicts(config, files ?? []);
 		} catch (error) {
 			console.error('[MAIN] File conflicts check failed:', error);
 			throw error;

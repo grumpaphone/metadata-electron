@@ -11,9 +11,28 @@ import { FuseV1Options, FuseVersion } from '@electron/fuses';
 import { mainConfig } from './webpack.main.config';
 import { rendererConfig } from './webpack.renderer.config';
 
+/**
+ * Code-signing / notarization environment variables (macOS):
+ *   APPLE_ID            - Apple ID email used for notarization.
+ *   APPLE_ID_PASSWORD   - App-specific password for the Apple ID.
+ *   APPLE_TEAM_ID       - Apple Developer team identifier.
+ * When these are unset, signing and notarization are skipped so local
+ * `electron-forge package`/`make` invocations still succeed.
+ */
 const config: ForgeConfig = {
 	packagerConfig: {
 		asar: true,
+		appBundleId: 'com.metadata-electron.app',
+		appCategoryType: 'public.app-category.productivity',
+		// icon: './assets/icon',   // TODO: add assets/icon.icns and assets/icon.ico
+		osxSign: process.env.APPLE_ID ? {} : undefined,
+		osxNotarize: process.env.APPLE_ID
+			? {
+				appleId: process.env.APPLE_ID!,
+				appleIdPassword: process.env.APPLE_ID_PASSWORD!,
+				teamId: process.env.APPLE_TEAM_ID!,
+			}
+			: undefined,
 	},
 	rebuildConfig: {},
 	makers: [
@@ -26,7 +45,9 @@ const config: ForgeConfig = {
 		new AutoUnpackNativesPlugin({}),
 		new WebpackPlugin({
 			mainConfig,
-			devContentSecurityPolicy: "connect-src 'self' * 'unsafe-eval' blob:",
+			// Production CSP is set via <meta> in renderer/index.html — do not grant unsafe-eval in prod.
+			devContentSecurityPolicy:
+				"default-src 'self' 'unsafe-inline' data: blob:; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline' data:; connect-src 'self' ws:;",
 			port: 3001,
 			loggerPort: 9002,
 			renderer: {
