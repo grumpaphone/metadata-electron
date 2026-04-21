@@ -3,6 +3,9 @@ import { XMLParser, XMLBuilder } from 'fast-xml-parser';
 import * as fs from 'fs';
 import * as path from 'path';
 import { Wavedata, BWFMetadata, FileInfo, IXMLMetadata } from '../../types';
+import { logger } from '../logger';
+
+const log = logger.child('METADATA');
 
 export class MetadataService {
 	private xmlParser = new XMLParser({ ignoreAttributes: false });
@@ -78,7 +81,7 @@ export class MetadataService {
 			};
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
-			console.error(`Failed to read metadata for ${filePath}: ${message}`);
+			log.error(`Failed to read metadata for ${filePath}: ${message}`);
 			throw new Error(`Failed to read metadata: ${message}`);
 		}
 	}
@@ -98,7 +101,7 @@ export class MetadataService {
 			const outputBuffer = wav.toBuffer();
 			await fs.promises.writeFile(filePath, outputBuffer);
 
-			console.log(`Metadata written successfully: ${filePath}`);
+			log.debug(`Metadata written successfully: ${filePath}`);
 
 			// Success path: remove backup.
 			try {
@@ -106,7 +109,7 @@ export class MetadataService {
 			} catch (cleanupError: unknown) {
 				const code = (cleanupError as NodeJS.ErrnoException)?.code;
 				if (code !== 'ENOENT') {
-					console.warn(
+					log.warn(
 						`Failed to clean up backup file ${backupPath}:`,
 						cleanupError
 					);
@@ -118,19 +121,19 @@ export class MetadataService {
 				// Restore succeeded; the original file is intact. The backup
 				// is intentionally preserved so the user can recover manually
 				// if desired.
-				console.error(
-					`[METADATA] Write failed for ${filePath}. Restored from backup. Backup preserved at: ${backupPath}`
+				log.error(
+					`Write failed for ${filePath}. Restored from backup. Backup preserved at: ${backupPath}`
 				);
 			} catch (restoreError) {
 				const restoreMsg =
 					restoreError instanceof Error
 						? restoreError.message
 						: String(restoreError);
-				console.error(
-					`[METADATA] CRITICAL: Failed to restore backup for ${filePath}: ${restoreMsg}`
+				log.error(
+					`CRITICAL: Failed to restore backup for ${filePath}: ${restoreMsg}`
 				);
-				console.error(
-					`[METADATA] BACKUP PRESERVED FOR MANUAL RECOVERY: ${backupPath}`
+				log.error(
+					`BACKUP PRESERVED FOR MANUAL RECOVERY: ${backupPath}`
 				);
 				throw new Error(
 					`Write failed AND backup restore failed for ${filePath}. ` +
@@ -201,7 +204,7 @@ export class MetadataService {
 				bwfData.CodingHistory = (bext.codingHistory as string) || '';
 			}
 		} catch (error) {
-			console.warn('Error extracting BWF data:', error);
+			log.warn('Error extracting BWF data:', error);
 		}
 		return bwfData;
 	}
@@ -213,7 +216,7 @@ export class MetadataService {
 				return this.xmlParser.parse(ixmlString) as IXMLMetadata;
 			}
 		} catch (error) {
-			console.warn('Error parsing iXML data:', error);
+			log.warn('Error parsing iXML data:', error);
 		}
 		return null;
 	}

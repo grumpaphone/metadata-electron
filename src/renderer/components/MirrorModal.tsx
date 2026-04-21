@@ -4,9 +4,9 @@ import {
 	MirrorConfiguration,
 	MirrorOrganizeLevel,
 	MirrorOrganizeField,
-	MirrorResult,
 	Wavedata,
 } from '../../types';
+import type { MirrorResultWithCancel } from '../../ipc-api';
 import { VibrancyLayer } from './VibrancyLayer';
 import { useFocusTrap } from '../utils/useFocusTrap';
 import { useModalKeyboard } from '../hooks/useModal';
@@ -207,7 +207,9 @@ export const MirrorModal: React.FC<MirrorModalProps> = ({
 	const [destinationPath, setDestinationPath] = useState('');
 	const [organizeLevels, setOrganizeLevels] = useState<MirrorOrganizeLevel[]>([{ field: 'show', order: 0 }]);
 	const [isProcessing, setIsProcessing] = useState(false);
-	const [result, setResult] = useState<MirrorResult | null>(null);
+	const [isCancelling, setIsCancelling] = useState(false);
+	const [result, setResult] = useState<MirrorResultWithCancel | null>(null);
+	const opIdRef = React.useRef<string | null>(null);
 
 	const api = window.electronAPI;
 
@@ -216,7 +218,9 @@ export const MirrorModal: React.FC<MirrorModalProps> = ({
 			setDestinationPath('');
 			setOrganizeLevels([{ field: 'show', order: 0 }]);
 			setIsProcessing(false);
+			setIsCancelling(false);
 			setResult(null);
+			opIdRef.current = null;
 		}
 	}, [isOpen]);
 
@@ -262,7 +266,13 @@ export const MirrorModal: React.FC<MirrorModalProps> = ({
 	const handleMirror = useCallback(async () => {
 		if (!destinationPath || organizeLevels.length === 0) return;
 		setIsProcessing(true);
+		setIsCancelling(false);
 		setResult(null);
+		const opId =
+			typeof crypto !== 'undefined' && 'randomUUID' in crypto
+				? crypto.randomUUID()
+				: `mirror-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+		opIdRef.current = opId;
 		try {
 			const config: MirrorConfiguration = {
 				destinationPath,
@@ -280,7 +290,7 @@ export const MirrorModal: React.FC<MirrorModalProps> = ({
 					return;
 				}
 			}
-			const mirrorResult = await api.mirrorFiles(config, allFiles);
+			const mirrorResult = await api.mirrorFiles(config, allFiles, opId);
 			setResult(mirrorResult);
 		} catch (error) {
 			setResult({
@@ -290,11 +300,34 @@ export const MirrorModal: React.FC<MirrorModalProps> = ({
 			});
 		} finally {
 			setIsProcessing(false);
+			setIsCancelling(false);
+			opIdRef.current = null;
 		}
 	}, [destinationPath, organizeLevels, selectedFiles, allFiles, api]);
 
+	const handleCancelMirror = useCallback(async () => {
+		const opId = opIdRef.current;
+		if (!opId || isCancelling) return;
+		setIsCancelling(true);
+		try {
+			await api.cancelMirror(opId);
+		} catch (error) {
+			console.error('Failed to request mirror cancellation:', error);
+		}
+	}, [api, isCancelling]);
+
 	const trapRef = useFocusTrap(isOpen);
-	const escGuard = useCallback(() => !isProcessing, [isProcessing]);
+	// Escape while processing asks the user to confirm cancelling the
+	// in-flight mirror; the modal stays open until the mirrorFiles promise
+	// resolves with `cancelled: true`, at which point the user can close.
+	const escGuard = useCallback(() => {
+		if (!isProcessing) return true;
+		const proceed = window.confirm('Cancel mirror in progress?');
+		if (proceed) {
+			void handleCancelMirror();
+		}
+		return false;
+	}, [isProcessing, handleCancelMirror]);
 	useModalKeyboard(isOpen, onClose, escGuard);
 
 	if (!isOpen) return null;
@@ -344,12 +377,16 @@ export const MirrorModal: React.FC<MirrorModalProps> = ({
 
 				{result && (
 					<ResultSection>
-						{result.success ? (
+						{result.cancelled ? (
+							<div style={{ color: 'var(--color-warning)', fontWeight: 500 }}>
+								Cancelled. {result.copiedFiles} file{result.copiedFiles === 1 ? '' : 's'} copied, {result.conflicts.length} skipped.
+							</div>
+						) : result.success ? (
 							<div style={{ color: 'var(--color-success)', fontWeight: 500 }}>Mirror completed! Copied {result.copiedFiles} files.</div>
 						) : (
 							<div style={{ color: 'var(--color-error)', fontWeight: 500 }}>Mirror failed with {result.errors.length} errors.</div>
 						)}
-						{result.conflicts.length > 0 && (
+						{!result.cancelled && result.conflicts.length > 0 && (
 							<div style={{ color: 'var(--color-warning)', fontWeight: 500, marginTop: '8px' }}>
 								{result.conflicts.length} files skipped due to conflicts.
 							</div>
@@ -363,11 +400,17 @@ export const MirrorModal: React.FC<MirrorModalProps> = ({
 				)}
 
 				<ModalFooter>
-					<Button variant="secondary" onClick={onClose}>{result ? 'Close' : 'Cancel'}</Button>
+					<Button variant="secondary" onClick={onClose} disabled={isProcessing && !isCancelling}>{result ? 'Close' : 'Cancel'}</Button>
 					{!result && (
-						<Button onClick={handleMirror} disabled={!destinationPath || organizeLevels.length === 0 || isProcessing}>
-							{isProcessing ? 'Processing...' : 'Start Mirror'}
-						</Button>
+						isProcessing ? (
+							<Button variant="danger" onClick={handleCancelMirror} disabled={isCancelling}>
+								{isCancelling ? 'Cancelling...' : 'Cancel Mirror'}
+							</Button>
+						) : (
+							<Button onClick={handleMirror} disabled={!destinationPath || organizeLevels.length === 0}>
+								Start Mirror
+							</Button>
+						)
 					)}
 				</ModalFooter>
 			</ModalContent>

@@ -7,22 +7,37 @@ import {
 	Wavedata,
 } from '../../types';
 import { metadataService } from './MetadataService';
+import { logger } from '../logger';
+
+const log = logger.child('MIRROR');
+
+/**
+ * Mirror result extended with a `cancelled` flag indicating the operation
+ * was aborted mid-flight via the cancellation token.
+ */
+export type MirrorResultWithCancel = MirrorResult & { cancelled: boolean };
 
 export class MirrorService {
 	/**
-	 * Mirror files with metadata-based folder organization
+	 * Mirror files with metadata-based folder organization.
+	 *
+	 * `isCancelled` is polled before each file is processed; when it returns
+	 * true the loop exits early and the returned result carries
+	 * `cancelled: true`.
 	 */
 	async mirrorFiles(
 		config: MirrorConfiguration,
-		allFiles: Wavedata[]
-	): Promise<MirrorResult> {
-		console.log('[MIRROR] Starting mirror operation with config:', config);
+		allFiles: Wavedata[],
+		isCancelled: () => boolean = () => false
+	): Promise<MirrorResultWithCancel> {
+		log.debug('Starting mirror operation with config:', config);
 
-		const result: MirrorResult = {
+		const result: MirrorResultWithCancel = {
 			success: true,
 			copiedFiles: 0,
 			errors: [],
 			conflicts: [],
+			cancelled: false,
 		};
 
 		try {
@@ -36,15 +51,20 @@ export class MirrorService {
 				)
 				: allFiles;
 
-			console.log(`[MIRROR] Processing ${filesToProcess.length} files`);
+			log.debug(`Processing ${filesToProcess.length} files`);
 
 			// Process each file
 			for (const file of filesToProcess) {
+				if (isCancelled()) {
+					result.cancelled = true;
+					log.debug('Cancellation requested; stopping loop.');
+					break;
+				}
 				try {
 					await this.processFile(file, config, result);
 				} catch (error) {
-					console.error(
-						`[MIRROR] Error processing file ${file.filePath}:`,
+					log.error(
+						`Error processing file ${file.filePath}:`,
 						error
 					);
 					result.errors.push({
@@ -55,12 +75,12 @@ export class MirrorService {
 				}
 			}
 
-			console.log(
-				`[MIRROR] Mirror operation completed. Copied: ${result.copiedFiles}, Errors: ${result.errors.length}`
+			log.debug(
+				`Mirror operation completed. Copied: ${result.copiedFiles}, Errors: ${result.errors.length}, Cancelled: ${result.cancelled}`
 			);
 			return result;
 		} catch (error) {
-			console.error('[MIRROR] Mirror operation failed:', error);
+			log.error('Mirror operation failed:', error);
 			result.success = false;
 			result.errors.push({
 				filePath: 'GENERAL',
@@ -145,7 +165,7 @@ export class MirrorService {
 		}
 
 		result.copiedFiles++;
-		console.log(`[MIRROR] Copied: ${file.filename} -> ${destinationPath}`);
+		log.debug(`Copied: ${file.filename} -> ${destinationPath}`);
 	}
 
 	/**
@@ -230,7 +250,7 @@ export class MirrorService {
 		try {
 			await fs.promises.mkdir(dirPath, { recursive: true });
 		} catch (error) {
-			console.error(`[MIRROR] Failed to create directory ${dirPath}:`, error);
+			log.error(`Failed to create directory ${dirPath}:`, error);
 			throw error;
 		}
 	}

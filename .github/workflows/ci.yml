@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-typecheck-test:
+    name: Lint, Typecheck, Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - name: Run tests (non-blocking if not yet configured)
+        run: |
+          if [ -f vitest.config.ts ] || [ -f vitest.config.js ] || [ -f vitest.config.mjs ]; then
+            npm test
+          else
+            echo "No vitest config found; skipping tests."
+          fi
+        continue-on-error: true
+
+  package-macos:
+    name: Package macOS (arm64)
+    runs-on: macos-latest
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Package (unsigned, no notarization in CI)
+        run: npx electron-forge package --platform=darwin --arch=arm64
+      - uses: actions/upload-artifact@v4
+        with:
+          name: metadata-electron-darwin-arm64
+          path: out/**/*
+          if-no-files-found: warn

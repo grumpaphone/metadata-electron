@@ -50,6 +50,7 @@ const createFallbackAPI = (): typeof window.electronAPI => {
 		openFileDialog: noopPromise,
 		selectMirrorDestination: () => Promise.resolve(null),
 		mirrorFiles: noopPromise,
+		cancelMirror: noopPromise,
 		checkFileConflicts: () => Promise.resolve([]),
 		getAgentStatuses: () => Promise.resolve([]),
 		toggleAgent: noopPromise,

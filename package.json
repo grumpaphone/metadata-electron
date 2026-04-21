@@ -11,7 +11,10 @@
 		"publish": "electron-forge publish",
 		"lint": "eslint --ext .ts,.tsx .",
 		"lint:fix": "eslint --ext .ts,.tsx src --fix",
-		"typecheck": "tsc --noEmit -p tsconfig.json"
+		"typecheck": "tsc --noEmit -p tsconfig.json",
+		"test": "vitest run",
+		"test:watch": "vitest",
+		"test:coverage": "vitest run --coverage"
 	},
 	"keywords": [],
 	"author": {
@@ -34,6 +37,7 @@
 		"@electron-forge/plugin-auto-unpack-natives": "^7.4.0",
 		"@electron-forge/plugin-fuses": "^7.4.0",
 		"@electron-forge/plugin-webpack": "^7.4.0",
+		"@electron-forge/publisher-github": "^7.4.0",
 		"@electron/fuses": "^1.8.0",
 		"@emotion/babel-plugin": "^11.13.5",
 		"@types/node": "^20.12.12",
@@ -54,7 +58,9 @@
 		"style-loader": "^3.3.1",
 		"ts-loader": "^9.2.2",
 		"ts-node": "^10.0.0",
-		"typescript": "^5.4.5"
+		"typescript": "^5.4.5",
+		"vitest": "^1.6.0",
+		"@vitest/coverage-v8": "^1.6.0"
 	},
 	"dependencies": {
 		"@emotion/react": "^11.11.4",
@@ -64,6 +70,7 @@
 		"fast-xml-parser": "^4.4.0",
 		"react": "^18.3.1",
 		"react-dom": "^18.3.1",
+		"update-electron-app": "^3.0.0",
 		"wavefile": "^11.0.0",
 		"wavesurfer.js": "^7.9.5",
 		"zustand": "^4.5.2"

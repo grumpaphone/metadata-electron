@@ -7,6 +7,12 @@ import {
 } from './types';
 
 /**
+ * Extended mirror result with a `cancelled` flag emitted when the
+ * operation was aborted via `cancelMirror` before completing.
+ */
+export type MirrorResultWithCancel = MirrorResult & { cancelled?: boolean };
+
+/**
  * A centralized object to hold all IPC channel names.
  * This provides a single source of truth and prevents typo-related errors.
  */
@@ -24,6 +30,7 @@ export const CHANNELS = {
 	writeMetadata: 'ipc:write-metadata',
 	// Mirror Feature
 	mirrorFiles: 'ipc:mirror-files',
+	cancelMirror: 'ipc:cancel-mirror',
 	checkFileConflicts: 'ipc:check-file-conflicts',
 	// Agents & Status
 	getAgentStatuses: 'ipc:agents-get-statuses',
@@ -66,8 +73,10 @@ export interface IElectronAPI {
 	// Mirror Feature
 	mirrorFiles: (
 		config: MirrorConfiguration,
-		files: Wavedata[]
-	) => Promise<MirrorResult>;
+		files: Wavedata[],
+		opId: string
+	) => Promise<MirrorResultWithCancel>;
+	cancelMirror: (opId: string) => Promise<void>;
 	checkFileConflicts: (
 		config: MirrorConfiguration,
 		files: Wavedata[]

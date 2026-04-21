@@ -31,8 +31,9 @@ const electronAPI: IElectronAPI = {
 		ipcRenderer.invoke(CHANNELS.readMetadata, filePath),
 	writeMetadata: (filePath, metadata) =>
 		ipcRenderer.invoke(CHANNELS.writeMetadata, filePath, metadata),
-	mirrorFiles: (config, files) =>
-		ipcRenderer.invoke(CHANNELS.mirrorFiles, config, files),
+	mirrorFiles: (config, files, opId) =>
+		ipcRenderer.invoke(CHANNELS.mirrorFiles, config, files, opId),
+	cancelMirror: (opId) => ipcRenderer.invoke(CHANNELS.cancelMirror, opId),
 	checkFileConflicts: (config, files) =>
 		ipcRenderer.invoke(CHANNELS.checkFileConflicts, config, files),
 	startFileWatching: (filePath: string) =>

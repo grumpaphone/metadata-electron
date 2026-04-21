@@ -1,0 +1,29 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+# TODO: For signed + notarized macOS releases, add the following repo secrets
+# and expose them as env vars to the publish step:
+#   APPLE_ID            - Apple ID email
+#   APPLE_ID_PASSWORD   - App-specific password (https://appleid.apple.com)
+#   APPLE_TEAM_ID       - Apple Developer Team ID
+# forge.config.ts is expected to env-gate osxSign / osxNotarize on these.
+
+jobs:
+  publish:
+    name: Publish (macOS)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Publish via electron-forge
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm run publish
