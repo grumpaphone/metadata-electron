@@ -94,3 +94,8 @@ out/
 
 # Build output
 dist/
+
+# AI assistant runtime state
+.claude/
+.codex/
+.cursor/
